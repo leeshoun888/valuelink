@@ -3,7 +3,7 @@
 
 import type { BusEvent, Capabilities, VehicleBus } from './bus'
 import { annualFade, AVG_HABITS, BatteryTracker, stateOfHealth, type BatteryHabits, type ChargeSession } from './battery'
-import { RULES, warningName, type GuardKind, type LedgerEntry, type Suggestion } from './guard'
+import { isPlugged, RULES, warningName, type GuardKind, type LedgerEntry, type Suggestion } from './guard'
 import { HabitTracker, type HabitStats } from './habits'
 import { Passport, type PassportCheck } from './passport'
 import type { Bookmark, VehicleAction, VehicleSignals } from './types'
@@ -331,7 +331,7 @@ export class Runtime {
     const protectedMonth = this.ledger.filter((e) => new Date(e.t).getMonth() === month).reduce((a, e) => a + e.won, 0)
     const protectedTotal = this.ledger.reduce((a, e) => a + e.won, 0)
     const charging = sig.chargeState === 'charging' || (sig.chargeKw ?? 0) > 0.5
-    const mode: Mode = sig.speedKph > 1 || sig.gear !== 'P' ? 'driving' : charging || sig.plugged ? 'charging' : 'parked'
+    const mode: Mode = sig.speedKph > 1 || sig.gear !== 'P' ? 'driving' : charging || isPlugged(sig) ? 'charging' : 'parked'
     const premium = check.chainOk && check.mileageOk && check.days >= 30 ? 0.02 : 0
     const first = this.passport.blocks[0]
     const last = this.passport.blocks.at(-1)

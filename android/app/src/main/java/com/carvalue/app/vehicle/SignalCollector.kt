@@ -97,7 +97,7 @@ class SignalCollector(
 
     private fun snapshot(): String {
         val o = JSONObject()
-        for ((k, v) in values) o.put(k, v)
+        for ((k, v) in values) o.put(k, if (v is DoubleArray) JSONArray(v.toList()) else v)
         return o.toString()
     }
 
@@ -116,6 +116,7 @@ class SignalCollector(
         val ev = vehicle.getEvBattery()
         read<Float>("EvBattery.getCumulativeEvEfficiency", "evEfficiency", { it.toDouble() }) { ok, fail -> ev.getCumulativeEvEfficiency(ok, fail) }
         read<Boolean>("EvBattery.isEvChargePortOpen", "chargePortOpen") { ok, fail -> ev.isEvChargePortOpen(ok, fail) }
+        read<Boolean>("EvBattery.getEvChargeSwitchState", "chargeSwitch") { ok, fail -> ev.getEvChargeSwitchState(ok, fail) }
         if (!listeners.odometerLive) {
             read<Float>("Odometer.getCurrentDistanceDriven", "odometerKm", { it.toDouble() }) { ok, fail -> vehicle.getOdometer().getCurrentDistanceDriven(ok, fail) }
         }

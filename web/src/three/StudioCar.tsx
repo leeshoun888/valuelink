@@ -70,6 +70,12 @@ interface Props {
   style?: React.CSSProperties
   /** render on demand only (static frames, e.g. while driving) */
   still?: boolean
+  /**
+   * Head-unit mode: render on demand at dpr 1. Frames run only for a few seconds after the car state changes
+   * (a window closing, the pack filling) or while the driver drags the car; otherwise the GPU idles.
+   * Measured on Pleos Connect emulator 2.1.0: a continuously rendered full-screen scene starved the VHAL.
+   */
+  lowPower?: boolean
   /** camera distance (default 7.8) */
   distance?: number
   /** move the car within the frame, as a fraction of the width / height (+ = right / down) */
@@ -401,6 +407,21 @@ function Rig({ autoRotate, interactive, azimuth, distance, shiftX, shiftY }: { a
   return <OrbitControls target={[0, 0.72, 0]} enableZoom={false} enablePan={false} enableRotate={interactive} autoRotate={autoRotate} autoRotateSpeed={0.45} minPolarAngle={0.9} maxPolarAngle={1.45} />
 }
 
+/** Demand-mode driver: ~30 fps for 4 s whenever the car state changes, then idle. */
+function AnimateOnChange({ state }: { state: CarState }) {
+  const invalidate = useThree((s) => s.invalidate)
+  const key = JSON.stringify(state)
+  useEffect(() => {
+    let n = 0
+    const id = window.setInterval(() => {
+      invalidate()
+      if (++n > 120) window.clearInterval(id)
+    }, 33)
+    return () => window.clearInterval(id)
+  }, [key, invalidate])
+  return null
+}
+
 function Studio({ theme }: { theme: 'light' | 'dark' }) {
   const dark = theme === 'dark'
   return (
@@ -415,16 +436,16 @@ function Studio({ theme }: { theme: 'light' | 'dark' }) {
   )
 }
 
-export function StudioCar({ state, theme = 'light', autoRotate = true, interactive = true, azimuth = 0, paint, className, style, still, distance = 7.8, shiftX = 0, shiftY = 0 }: Props) {
+export function StudioCar({ state, theme = 'light', autoRotate = true, interactive = true, azimuth = 0, paint, className, style, still, lowPower, distance = 7.8, shiftX = 0, shiftY = 0 }: Props) {
   // graphite on light, silver on dark: the object always reads against the page
   const color = paint ?? (theme === 'dark' ? '#b9bcc1' : '#d4d6da')
   return (
     <div className={className} style={{ position: 'relative', ...style }}>
       <Canvas
-        dpr={[1, 1.75]}
+        dpr={lowPower ? 1 : [1, 1.75]}
         // the car app is drawn at fixed dp and CSS-scaled: measure layout size, not the scaled rect
         resize={{ offsetSize: true }}
-        frameloop={still ? 'demand' : 'always'}
+        frameloop={still || lowPower ? 'demand' : 'always'}
         shadows={false}
         gl={{ antialias: true, alpha: true, localClippingEnabled: true, toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 0.92 }}
         camera={{ fov: 24, near: 0.1, far: 60, position: [7, 2.3, 6] }}
@@ -442,7 +463,8 @@ export function StudioCar({ state, theme = 'light', autoRotate = true, interacti
           <ChargePort state={state} />
         </group>
         <ContactShadows position={[0, 0.001, 0]} opacity={theme === 'dark' ? 0.8 : 0.6} scale={HALF_L * 4.2} blur={2.6} far={2.2} resolution={512} color="#000" />
-        <Rig autoRotate={autoRotate && !still} interactive={interactive} azimuth={azimuth} distance={distance} shiftX={shiftX} shiftY={shiftY} />
+        {lowPower && <AnimateOnChange state={state} />}
+        <Rig autoRotate={autoRotate && !still && !lowPower} interactive={interactive} azimuth={azimuth} distance={distance} shiftX={shiftX} shiftY={shiftY} />
       </Canvas>
     </div>
   )

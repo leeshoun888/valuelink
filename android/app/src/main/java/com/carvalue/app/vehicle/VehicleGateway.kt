@@ -106,7 +106,8 @@ class VehicleGateway(context: Context, private val isParked: () -> Boolean) {
         }
         check("Door.checkDoorLockCapabilities", barrier) { done, fail ->
             door.checkDoorLockCapabilities({ cfg: CapabilityConfig, areas: List<DoorArea> ->
-                if (cfg.writable) lockAreas = areas
+                // The emulator also reports the HOOD as a lockable area; only cabin doors are locked.
+                if (cfg.writable) lockAreas = areas.filter { a -> a.values.none { it.name == "HOOD" } }
                 done(cfg.summary(areas.map { it.values.joinToString("+") }))
             }, fail)
         }
@@ -222,7 +223,9 @@ class VehicleGateway(context: Context, private val isParked: () -> Boolean) {
 
     private fun setChargeCurrent(amps: Double): Boolean {
         if (!chargeCurrentWritable) return unsupported("EvBattery.setEvChargeCurrentDrawLimit")
-        val v = snap(amps.toFloat().coerceAtLeast(6f), chargeCurrentSteps)
+        // Pleos reports the supported maximum (emulator: [48.0]) rather than a list of steps.
+        val max = chargeCurrentSteps.maxOrNull() ?: 48f
+        val v = amps.toFloat().coerceIn(6f, max)
         val call = "EvBattery.setEvChargeCurrentDrawLimit($v)"
         ev.setEvChargeCurrentDrawLimit(v, { r: Float? -> SdkTrace.ok(call, "now $r A") }, { e -> SdkTrace.fail(call, e) })
         return true

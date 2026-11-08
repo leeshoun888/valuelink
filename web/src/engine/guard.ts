@@ -95,12 +95,15 @@ const WARNING_KO: Record<string, string> = {
 }
 export const warningName = (t: string) => WARNING_KO[t] ?? t
 
+/** Cable in, charging enabled, or charging: any of them means the charge limit matters now. */
+export const isPlugged = (sig: VehicleSignals) => Boolean(sig.plugged || sig.chargeSwitch || sig.chargeState === 'charging')
+
 export const RULES: Rule[] = [
   {
     kind: 'tripCharge',
     cooldownMs: 6 * 3600e3,
     test: ({ sig, rangeAtLimitKm }) => {
-      const plugged = sig.plugged || sig.chargeState === 'charging'
+      const plugged = isPlugged(sig)
       const need = sig.routeRemainingKm
       if (!plugged || need === undefined || rangeAtLimitKm === undefined) return null
       if ((sig.chargeLimitPct ?? 100) >= 100 || need < rangeAtLimitKm * 0.9) return null
@@ -121,7 +124,7 @@ export const RULES: Rule[] = [
     kind: 'chargeCap',
     cooldownMs: 8 * 3600e3,
     test: ({ sig, valueManwon, rangeAtLimitKm }) => {
-      const plugged = sig.plugged || sig.chargeState === 'charging'
+      const plugged = isPlugged(sig)
       if (!plugged || (sig.chargeLimitPct ?? 100) <= 85) return null
       if (sig.routeRemainingKm !== undefined && rangeAtLimitKm !== undefined && sig.routeRemainingKm >= rangeAtLimitKm * 0.9) return null
       const w = sohWon(valueManwon, SOH_PER_CAPPED_SESSION)

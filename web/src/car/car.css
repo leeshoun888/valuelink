@@ -590,7 +590,7 @@
   position: absolute !important;
   left: 52px;
   right: 52px;
-  top: 128px;
+  bottom: 150px;
   z-index: 20;
   padding: 26px 26px 26px 44px;
   display: flex;
@@ -598,8 +598,12 @@
   justify-content: space-between;
   gap: 24px;
   border-radius: 99px !important;
-  background: var(--g-bg-solid) !important;
+  background: var(--c-solid, #fff) !important;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.18), inset 0 0 0 1px var(--c-sep) !important;
   animation: fade-up 0.35s var(--ease);
+}
+.jg-app[data-theme='dark'] .jg-suggest {
+  --c-solid: #1c1c1e;
 }
 .jg-suggest b {
   display: flex;

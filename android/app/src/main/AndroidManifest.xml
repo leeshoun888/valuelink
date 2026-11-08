@@ -33,6 +33,8 @@
     <!-- NaviHelper 3.0.5 -->
     <uses-permission android:name="pleos.car.permission.NAVI_ROUTE" />
     <uses-permission android:name="pleos.car.permission.NAVI_ROUTE_SEARCH" />
+    <!-- requestNavigationScreen (place search "블루핸즈", nearby chargers): refused without it on emulator 2.1.0 -->
+    <uses-permission android:name="pleos.car.permission.NAVI_CUSTOM_MAP" />
     <!-- TextToSpeech / SpeechToText 3.3.1 -->
     <uses-permission android:name="pleos.car.permission.TTS_SERVICE" />
     <uses-permission android:name="pleos.car.permission.STT_SERVICE" />

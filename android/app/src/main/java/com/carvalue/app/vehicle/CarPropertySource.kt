@@ -72,14 +72,27 @@ class CarPropertySource(private val context: Context, private val onValue: (key:
         }
     }
 
+    /**
+     * Car service lifecycle: on the emulator the VHAL can be restarted by the car watchdog. Without a listener
+     * Car finishes the activity; with one we simply re-subscribe when the service is back.
+     */
     fun start() {
-        val c = try {
-            Car.createCar(context)
+        try {
+            car = Car.createCar(context, null, Car.CAR_WAIT_TIMEOUT_DO_NOT_WAIT) { c, ready ->
+                if (ready) {
+                    SdkTrace.ok("Car.onLifecycleChanged", "ready")
+                    subscribeAll(c)
+                } else {
+                    SdkTrace.line("Car.onLifecycleChanged → car service down, waiting")
+                    manager = null
+                }
+            }
         } catch (t: Throwable) {
             SdkTrace.fail("Car.createCar()", t)
-            null
-        } ?: return
-        car = c
+        }
+    }
+
+    private fun subscribeAll(c: Car) {
         val m = c.getCarManager(Car.PROPERTY_SERVICE) as? CarPropertyManager ?: return
         manager = m
         subscribe(m, VehiclePropertyIds.PERF_VEHICLE_SPEED, CarPropertyManager.SENSOR_RATE_NORMAL)

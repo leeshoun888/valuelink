@@ -41,6 +41,8 @@ export interface VehicleSignals {
   chargeMinLeft?: number
   plugged?: boolean
   chargePortOpen?: boolean
+  /** EV_CHARGE_SWITCH: charging enabled (the Virtual Console's "charging" toggle) */
+  chargeSwitch?: boolean
   chargeLimitPct?: number
   chargeCurrentA?: number
   evEfficiency?: number

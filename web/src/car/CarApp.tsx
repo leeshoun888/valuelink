@@ -136,6 +136,7 @@ function Scene({ snap, theme, portrait }: { snap: Snapshot; theme: 'light' | 'da
           state={car}
           theme={theme}
           still={driving}
+          lowPower={isNative()}
           autoRotate={!driving}
           interactive={!driving}
           azimuth={driving ? 14 : 0}

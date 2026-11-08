@@ -26,7 +26,7 @@ function useReveal() {
 function Render({ name, alt, className }: { name: string; alt: string; className?: string }) {
   const [ok, setOk] = useState(true)
   if (!ok) return null
-  return <img className={className} src={`${R}${name}.png`} alt={alt} onError={() => setOk(false)} loading="lazy" />
+  return <img className={className} src={`${R}${name}.jpg`} alt={alt} onError={() => setOk(false)} loading="lazy" />
 }
 
 const STEPS: { k: string; title: string; body: string; sdk: string; car: Partial<CarState> }[] = [

@@ -261,10 +261,18 @@ export class Runtime {
     })
   }
 
-  /** WHEEL_TICK is relative to app start; anchor it to the odometer at that moment. */
+  /**
+   * WHEEL_TICK counts from app start. Continue the witness from the last sealed day: whatever the car drove
+   * while the app was off is bridged by the odometer once, then the wheels count independently again.
+   */
   private wheelAnchor: number | null = null
   private wheelBase(odo: number, tickKm: number) {
-    if (this.wheelAnchor === null) this.wheelAnchor = odo - tickKm
+    if (this.wheelAnchor === null) {
+      const today = dayKey(this.lastT)
+      const prev = [...this.passport.blocks].reverse().find((b) => b.day !== today)
+      const start = prev ? prev.wheelKm + (odo - prev.odometerKm) : odo
+      this.wheelAnchor = start - tickKm
+    }
     return this.wheelAnchor + tickKm
   }
 

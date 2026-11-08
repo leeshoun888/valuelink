@@ -12,9 +12,9 @@
  *
  * Everything is offline (no HDR downloads): the environment is built from Lightformers.
  */
-import { useEffect, useMemo, useRef } from 'react'
+import { Component, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { ContactShadows, Environment, Lightformer, OrbitControls } from '@react-three/drei'
+import { ContactShadows, Environment, Lightformer, OrbitControls, useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 import {
   BELT_Y,
@@ -326,6 +326,118 @@ function Wheels({ state }: { state: CarState }) {
   )
 }
 
+// ---- Blender model (tools/blender/build.py): panel gaps and AO baked into the body texture ---------------
+
+// silver for light scenes, deep black for dark ones (both built by tools/blender/render-all.sh)
+const GLB = { light: `${import.meta.env.BASE_URL}3d/ioniq5.glb`, dark: `${import.meta.env.BASE_URL}3d/ioniq5_black.glb` }
+
+/**
+ * The studio IONIQ 5 exported from Blender. Driven by name: window_* panes slide into the doors (clipped at
+ * the belt line), lamp_* materials glow, body materials fade for the x-ray view. Same frame as the loft.
+ */
+function GlbCar({ state, theme }: { state: CarState; theme: 'light' | 'dark' }) {
+  const { scene } = useGLTF(GLB[theme])
+  const parts = useMemo(() => {
+    const root = scene.clone(true)
+    const clip = [new THREE.Plane(new THREE.Vector3(0, 1, 0), -(BELT_Y + 0.02))]
+    const panes: THREE.Object3D[] = []
+    const bodyMats: THREE.MeshPhysicalMaterial[] = []
+    let head: THREE.MeshStandardMaterial | null = null
+    let tail: THREE.MeshStandardMaterial | null = null
+    root.traverse((o) => {
+      const m = o as THREE.Mesh
+      if (!m.isMesh) return
+      const mats = (Array.isArray(m.material) ? m.material : [m.material]).map((x) => (x as THREE.Material).clone())
+      m.material = Array.isArray(m.material) ? mats : mats[0]
+      for (const mat of mats as THREE.MeshPhysicalMaterial[]) {
+        mat.envMapIntensity = 1
+        if (mat.name.startsWith('body_')) {
+          mat.transparent = true
+          bodyMats.push(mat)
+        }
+        if (mat.name === 'window') {
+          mat.clippingPlanes = clip
+          mat.side = THREE.DoubleSide
+        }
+        if (mat.name === 'lamp_head') head = mat
+        if (mat.name === 'lamp_tail') tail = mat
+      }
+      if (o.name.startsWith('window_')) panes.push(o)
+    })
+    panes.sort((a, b) => ['window_fl', 'window_rl', 'window_fr', 'window_rr'].indexOf(a.name) - ['window_fl', 'window_rl', 'window_fr', 'window_rr'].indexOf(b.name))
+    return { root, panes, bodyMats, head: head as THREE.MeshStandardMaterial | null, tail: tail as THREE.MeshStandardMaterial | null }
+  }, [scene])
+  const open = useRef([0, 0, 0, 0])
+  const lamp = useRef(0)
+  const xr = useRef(0)
+  useFrame((_, dt) => {
+    const k = 1 - Math.exp(-dt * 2)
+    for (let n = 0; n < parts.panes.length; n++) {
+      const target = n < state.windowsOpen ? 0.3 : 0
+      open.current[n] += (target - open.current[n]) * k
+      parts.panes[n].position.y = -open.current[n]
+    }
+    lamp.current += ((state.headlights ? 1 : 0) - lamp.current) * k
+    if (parts.head) {
+      parts.head.emissive.set('#eaf2ff')
+      parts.head.emissiveIntensity = 0.35 + 3.2 * lamp.current
+    }
+    if (parts.tail) {
+      parts.tail.emissive.set('#ff1f3a')
+      parts.tail.emissiveIntensity = 0.25 + 2.2 * lamp.current
+    }
+    xr.current += ((state.xray ? 1 : 0) - xr.current) * k
+    for (const m of parts.bodyMats) {
+      m.opacity = 1 - 0.82 * xr.current
+      m.depthWrite = xr.current < 0.5
+    }
+  })
+  return <primitive object={parts.root} />
+}
+
+/** True once the model file is known to exist (a missing file must not take the whole canvas down). */
+const glbOk = new Map<string, Promise<boolean>>()
+function useGlbAvailable(url: string) {
+  const [ok, setOk] = useState<boolean | null>(null)
+  useEffect(() => {
+    let live = true
+    if (!glbOk.has(url)) {
+      glbOk.set(
+        url,
+        fetch(url, { method: 'HEAD' })
+          .then((r) => r.ok && !(r.headers.get('content-type') ?? '').includes('html'))
+          .catch(() => false),
+      )
+    }
+    glbOk.get(url)!.then((v) => live && setOk(v))
+    return () => {
+      live = false
+    }
+  }, [url])
+  return ok
+}
+
+/** Falls back to the procedural loft when the model cannot load (missing file, old WebView). */
+class GlbBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false }
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children
+  }
+}
+
+function TyreHalo({ on }: { on: boolean }) {
+  const geo = useMemo(() => new THREE.TorusGeometry(0.405, 0.016, 12, 96), [])
+  const mat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#ff9f0a', transparent: true, opacity: 0, toneMapped: false }), [])
+  useEffect(() => () => [geo, mat].forEach((d) => d.dispose()), [geo, mat])
+  useFrame(({ clock }) => {
+    mat.opacity = on ? 0.55 + 0.45 * Math.sin(clock.elapsedTime * 3.2) : 0
+  })
+  return <mesh geometry={geo} material={mat} position={[WHEEL_X[0], WHEEL_Y, -(TRACK_Z + 0.16)]} />
+}
+
 /** Battery pack under the floor: 2 × 16 modules, filled to the SoC, limit line at the charge limit. */
 function Pack({ state }: { state: CarState }) {
   const COLS = 16
@@ -439,6 +551,7 @@ function Studio({ theme }: { theme: 'light' | 'dark' }) {
 export function StudioCar({ state, theme = 'light', autoRotate = true, interactive = true, azimuth = 0, paint, className, style, still, lowPower, distance = 7.8, shiftX = 0, shiftY = 0 }: Props) {
   // graphite on light, silver on dark: the object always reads against the page
   const color = paint ?? (theme === 'dark' ? '#b9bcc1' : '#d4d6da')
+  const glb = useGlbAvailable(GLB[theme])
   return (
     <div className={className} style={{ position: 'relative', ...style }}>
       <Canvas
@@ -456,9 +569,28 @@ export function StudioCar({ state, theme = 'light', autoRotate = true, interacti
         <Studio theme={theme} />
         <ambientLight intensity={theme === 'dark' ? 0.15 : 0.35} />
         <group rotation={[0, -0.35, 0]}>
-          <Body state={state} paint={color} />
-          <Windows state={state} />
-          <Wheels state={state} />
+          {glb === false ? (
+            <>
+              <Body state={state} paint={color} />
+              <Windows state={state} />
+              <Wheels state={state} />
+            </>
+          ) : glb && (
+          <GlbBoundary
+            fallback={
+              <>
+                <Body state={state} paint={color} />
+                <Windows state={state} />
+                <Wheels state={state} />
+              </>
+            }
+          >
+            <Suspense fallback={null}>
+              <GlbCar state={state} theme={theme} />
+            </Suspense>
+          </GlbBoundary>
+          )}
+          <TyreHalo on={state.tyreWarning} />
           <Pack state={state} />
           <ChargePort state={state} />
         </group>

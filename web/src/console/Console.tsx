@@ -31,7 +31,7 @@ export default function Console() {
     <div className="mc">
       <header className="mc-top">
         <a href="#/" className="mc-brand">
-          <Logo size={22} /> 제값 <span>Mission Control</span>
+          <Logo size={22} /> 밸류링크 <span>Mission Control</span>
         </a>
         <div className="mc-transport">
           <button className="pill secondary" onClick={() => useStore.getState().setPlaying(!playing)}>
@@ -146,6 +146,14 @@ function Triggers() {
       </button>
       <button onClick={t(() => ((sim.sig.routeRemainingKm = 395), (sim.sig.navStatus = 'ROUTE_READY')))}>부산 395km 목적지</button>
       <button onClick={t(() => sim.unplug())}>충전기 분리</button>
+      <button
+        onClick={t(() => {
+          Object.assign(sim.sig, { outsideTempC: -4, fastChargePlanned: true, plannedChargeKw: 240, plannedChargeKm: 38, batteryConditioning: false })
+          sim.drive({ name: '이핏 급속충전소', km: 38, cruiseKph: 80 })
+        })}
+      >
+        겨울 급속충전 경로
+      </button>
     </div>
   )
 }
@@ -187,7 +195,7 @@ function ValueChart({ snap }: { snap: Snapshot }) {
           <b className="num">{manwon(snap.value.value)}</b>
         </div>
         <div>
-          <small>이번 달 지킨 가치</small>
+          <small>이번 달 지켜낸 가치</small>
           <b className="num">+{won(snap.protectedMonth)}</b>
         </div>
         <div>
@@ -209,7 +217,7 @@ function SdkLog({ snap }: { snap: Snapshot }) {
   return (
     <div className="mc-card mc-log">
       <div className="mc-card-head">
-        <h3>제값이 한 일 · Pleos SDK 호출</h3>
+        <h3>밸류링크가 한 일 · Pleos SDK 호출</h3>
         <span>누적 +{won(snap.protectedTotal)}</span>
       </div>
       <ul>

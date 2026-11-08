@@ -1,5 +1,5 @@
 #!/bin/bash
-# JEGAP scenario steps on the Pleos Connect emulator through the Virtual Console (keep its page open:
+# ValueLink scenario steps on the Pleos Connect emulator through the Virtual Console (keep its page open:
 # the VC accepts writes only while emulator_active). adb forward tcp:8088 tcp:8088 first.
 #   jg.sh odo 24812          odometer km
 #   jg.sh soc 62             state of charge

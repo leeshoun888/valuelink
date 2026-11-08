@@ -502,7 +502,7 @@
 .jg-sheet-bg {
   position: absolute;
   inset: 0;
-  z-index: 40;
+  z-index: 60;
   background: rgba(0, 0, 0, 0.18);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
@@ -648,6 +648,9 @@
   -webkit-backdrop-filter: blur(24px);
   animation: fade-up 0.3s var(--ease);
 }
+.jg-caption.raised {
+  bottom: 300px;
+}
 .jg-app[data-theme='dark'] .jg-caption {
   background: rgba(245, 245, 247, 0.9);
   color: #1d1d1f;
@@ -702,4 +705,128 @@
   white-space: normal;
   width: 760px;
   text-align: center;
+}
+
+/* hero link row (care score, quests, certified-used-car window) */
+.jg-linkrow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-top: 18px;
+  font-size: 23px;
+  color: var(--c-2);
+}
+.jg-linkrow b {
+  color: var(--c-text);
+  font-weight: 700;
+}
+.jg-linkrow span + span::before {
+  content: '·';
+  margin-right: 18px;
+  color: var(--c-3);
+}
+
+/* asset value report */
+.jg-report-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 30px;
+}
+.jg-care {
+  flex: none;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 0 0 8px var(--c-text);
+}
+.jg-care span {
+  font-size: 56px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+.jg-care small {
+  margin-top: 4px;
+  font-size: 19px;
+  color: var(--c-2);
+}
+.jg-links {
+  margin-top: 26px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.jg-links section {
+  padding: 22px 26px;
+  border-radius: 26px;
+  background: var(--c-fill);
+}
+.jg-links h4 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--c-2);
+}
+.jg-links p {
+  margin: 6px 0 0;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+.jg-links small {
+  display: block;
+  margin-top: 6px;
+  font-size: 20px;
+  color: var(--c-2);
+  line-height: 1.4;
+}
+.jg-quests {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.jg-quests li {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  overflow: hidden;
+  font-size: 20px;
+}
+.jg-quests li i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--c-fill);
+  border-radius: 12px;
+  z-index: 0;
+}
+.jg-quests li span,
+.jg-quests li b {
+  position: relative;
+  z-index: 1;
+}
+.jg-quests li.done span::before {
+  content: '✓ ';
+  font-weight: 700;
+}
+.jg-app .jg-sheet {
+  width: 1100px;
+}
+.jg-app.is-portrait .jg-links {
+  grid-template-columns: 1fr;
+}
+.jg-app.is-portrait .jg-linkrow {
+  display: none;
 }

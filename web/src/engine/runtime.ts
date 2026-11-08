@@ -6,6 +6,7 @@ import { annualFade, AVG_HABITS, BatteryTracker, stateOfHealth, type BatteryHabi
 import { isPlugged, RULES, warningName, type GuardKind, type LedgerEntry, type Suggestion } from './guard'
 import { HabitTracker, type HabitStats } from './habits'
 import { Passport, type PassportCheck } from './passport'
+import { decodeVin, links, type Links } from './links'
 import type { Bookmark, VehicleAction, VehicleSignals } from './types'
 import { ageCurve, expectedSoh, identify, KM_PER_YEAR, valuate, VALUE_PER_SOH_POINT, type CarModel, type Valuation } from './valuation'
 
@@ -44,6 +45,9 @@ export interface Snapshot {
   suggestion: Suggestion | null
   warnings: { type: string; name: string; count: number }[]
   tradeIn: { price: number; validDays: number; premium: number } | null
+  /** What the record is worth to each Hyundai Motor Group service (the "Link" in ValueLink). */
+  links: Links
+  vin: { maker: string; year?: number } | null
   speaking: string | null
 }
 
@@ -183,6 +187,7 @@ export class Runtime {
     this.ledger.unshift(e)
     this.ledger = this.ledger.slice(0, 200)
     this.say(say)
+    this.publish(this.bus.read()) // the SDK answered after this tick's snapshot: show it now
   }
 
   private onWarningCleared(type: string, sig: VehicleSignals) {
@@ -193,7 +198,7 @@ export class Runtime {
       t: sig.t,
       kind: 'warningLamp',
       title: `${warningName(type)} 경고등 해결`,
-      detail: '점검 완료가 차량 여권에 기록됐어요. 감가 요인이 사라졌어요.',
+      detail: '점검 완료가 차량 여권에 기록됐어요. 자산 가치가 회복됐어요.',
       won: value * 10_000 * 0.02,
       basis: '경고등 1개 미해결 = 차량가 −2% [가정] 회복',
       sdk: ['Safety.getTelltalesInfo → OFF'],
@@ -369,6 +374,21 @@ export class Runtime {
       suggestion: this.suggestion,
       warnings: (sig.warnings ?? []).map((w) => ({ type: w.type, name: warningName(w.type), count: w.count })),
       tradeIn: mode === 'driving' ? null : { price: Math.round((value.value * (1 + premium)) / 10) * 10, validDays: 7, premium },
+      links: links({
+        now: sig.t,
+        ageYears: age,
+        odometerKm: sig.odometerKm ?? this.drivenKm,
+        airbagDeployed: sig.airbagDeployed === true,
+        valueManwon: value.value,
+        premium,
+        battery: habits,
+        habits: hs,
+        passport: check,
+        activeWarnings: sig.warnings?.length ?? 0,
+        ledger: this.ledger,
+        cappedSessionsThisMonth: this.battery.sessions.filter((x) => new Date(x.end).getMonth() === month && new Date(x.end).getFullYear() === new Date(sig.t).getFullYear() && x.endSoc <= 85).length,
+      }),
+      vin: decodeVin(sig.vin),
       speaking: this.speaking,
     }
     this.listeners.forEach((l) => l(this.snap!))

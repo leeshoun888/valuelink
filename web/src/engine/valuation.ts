@@ -2,7 +2,7 @@
 //
 //   value = basePrice × age curve × (1 + mileage) × (1 + battery) × (1 + condition) × (1 + passport)
 //
-// The coefficients are JEGAP's working assumptions, not market data: with a Hyundai Certified Used Car
+// The coefficients are ValueLink's working assumptions, not market data: with a Hyundai Certified Used Car
 // partnership the age curve and base price would come from Hyundai's own transaction data, and the battery
 // term from the BMS. The structure (what moves value and by how much) is what the app teaches the driver.
 

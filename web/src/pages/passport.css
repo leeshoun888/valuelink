@@ -1,0 +1,236 @@
+.pp-boot {
+  height: 100vh;
+  display: grid;
+  place-items: center;
+}
+.pp {
+  min-height: 100vh;
+  background: #f5f5f7;
+  color: #1d1d1f;
+  padding-bottom: 60px;
+}
+.pp-nav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  height: 52px;
+  padding: 0 max(22px, calc(50vw - 490px));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(245, 245, 247, 0.8);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  font-size: 14px;
+}
+.pp-brand {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-weight: 700;
+  color: #1d1d1f;
+}
+.pp-head {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 80px 22px 30px;
+  text-align: center;
+}
+.pp-eyebrow {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #86868b;
+}
+.pp-head h1 {
+  margin: 8px 0 0;
+  font-size: clamp(40px, 6vw, 64px);
+  letter-spacing: -0.04em;
+}
+.pp-id {
+  margin: 8px 0 0;
+  color: #86868b;
+  font-size: 14px;
+}
+.pp-verdict {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 26px;
+  padding: 16px 28px;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 30px rgba(0, 0, 0, 0.06);
+}
+.pp-verdict b {
+  font-size: 19px;
+}
+.pp-verdict.ok b::before {
+  content: '✓ ';
+}
+.pp-verdict.bad b::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: #ff9f0a;
+}
+.pp-verdict span {
+  font-size: 13px;
+  color: #6e6e73;
+}
+.pp-grid {
+  max-width: 980px;
+  margin: 20px auto 0;
+  padding: 0 22px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+.pp-card {
+  padding: 22px 24px;
+  border-radius: 22px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 10px 26px rgba(0, 0, 0, 0.05);
+}
+.pp-card small {
+  font-size: 13px;
+  font-weight: 600;
+  color: #86868b;
+}
+.pp-card b {
+  font-size: 24px;
+  letter-spacing: -0.03em;
+}
+.pp-card span {
+  font-size: 13px;
+  color: #6e6e73;
+  line-height: 1.45;
+}
+.pp-chart,
+.pp-chain {
+  max-width: 980px;
+  margin: 14px auto 0;
+  padding: 24px 26px;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 10px 26px rgba(0, 0, 0, 0.05);
+  width: calc(100% - 44px);
+}
+.pp-chart-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.pp-chart-head h2 {
+  margin: 0;
+  font-size: 19px;
+  letter-spacing: -0.02em;
+}
+.pp-chart-head span {
+  font-size: 12px;
+  color: #6e6e73;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pp-chart-head i {
+  display: inline-block;
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  margin-left: 8px;
+}
+.pp-chart-head i.km {
+  background: #1d1d1f;
+}
+.pp-chart-head i.soh {
+  background: #86868b;
+}
+.pp-chart svg {
+  width: 100%;
+  margin-top: 12px;
+}
+.pp-chart path {
+  fill: none;
+  stroke-width: 2.4;
+  stroke-linejoin: round;
+}
+.pp-chart path.km {
+  stroke: #1d1d1f;
+}
+.pp-chart path.soh {
+  stroke: #86868b;
+  stroke-dasharray: 4 4;
+}
+.pp-chart text {
+  font-size: 11px;
+  fill: #86868b;
+}
+.pp-chain .pill {
+  height: 32px;
+  font-size: 13px;
+}
+.pp-tamper {
+  margin: 14px 0 0;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: #fff4e5;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.pp-chain ol {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+}
+.pp-chain li {
+  display: grid;
+  grid-template-columns: 70px 120px 110px 80px 1fr;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid #f0f0f2;
+  font-size: 14px;
+  align-items: baseline;
+}
+.pp-chain li:first-child {
+  border-top: 0;
+}
+.pp-chain li span {
+  color: #6e6e73;
+}
+.pp-chain code {
+  font-size: 12px;
+  color: #86868b;
+}
+.pp-head-hash {
+  margin: 12px 0 0;
+  font-size: 11px;
+  color: #86868b;
+  word-break: break-all;
+}
+.pp-foot {
+  max-width: 980px;
+  margin: 26px auto 0;
+  padding: 0 22px;
+  font-size: 13px;
+  color: #86868b;
+  line-height: 1.6;
+}
+@media (max-width: 700px) {
+  .pp-chain li {
+    grid-template-columns: 60px 1fr 1fr;
+  }
+  .pp-chain li code,
+  .pp-chain li span:nth-of-type(3) {
+    display: none;
+  }
+}

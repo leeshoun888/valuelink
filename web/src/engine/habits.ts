@@ -27,7 +27,8 @@ export class HabitTracker {
   prior = { km: 400, accel: 4, brake: 6, adas: 2 }
 
   update(sig: VehicleSignals, drivenKm: number) {
-    const cur = { accel: sig.harshAccel ?? 0, brake: sig.harshBrake ?? 0, adas: sig.adasWarnings ?? 0, km: drivenKm }
+    // near-miss signals: driver-assist warnings (forward collision, lane keeping) and speed-camera over-speed
+    const cur = { accel: sig.harshAccel ?? 0, brake: sig.harshBrake ?? 0, adas: (sig.adasWarnings ?? 0) + (sig.cameraOverSpeed ?? 0), km: drivenKm }
     if (!this.base) this.base = cur
     this.last = cur
   }

@@ -2,7 +2,7 @@
  * StudioCar: the IONIQ 5 as an object on a studio table. Apple product-page grammar: one object,
  * soft area lights, clear-coated paint, real glass, a contact shadow, slow motion.
  *
- * It is also a live twin of what JEGAP does to the car:
+ * It is also a live twin of what ValueLink does to the car:
  *   windows   side glass slides down / up (Window.setWindowPosition)
  *   lights    pixel headlamps on / off (Light.setLowBeamLightSwitch)
  *   blind     the vision roof turns from glass to fabric (Window.moveWindowBlind)
@@ -328,8 +328,9 @@ function Wheels({ state }: { state: CarState }) {
 
 // ---- Blender model (tools/blender/build.py): panel gaps and AO baked into the body texture ---------------
 
-// silver for light scenes, deep black for dark ones (both built by tools/blender/render-all.sh)
-const GLB = { light: `${import.meta.env.BASE_URL}3d/ioniq5.glb`, dark: `${import.meta.env.BASE_URL}3d/ioniq5_black.glb` }
+// Silver in both themes: in real-time light a black body sinks into a dark page (the black build is for
+// the Cycles renders, where rim lights carry its shape).
+const GLB = { light: `${import.meta.env.BASE_URL}3d/ioniq5.glb`, dark: `${import.meta.env.BASE_URL}3d/ioniq5.glb` }
 
 /**
  * The studio IONIQ 5 exported from Blender. Driven by name: window_* panes slide into the doors (clipped at
@@ -351,7 +352,7 @@ function GlbCar({ state, theme }: { state: CarState; theme: 'light' | 'dark' }) 
       m.material = Array.isArray(m.material) ? mats : mats[0]
       for (const mat of mats as THREE.MeshPhysicalMaterial[]) {
         mat.envMapIntensity = 1
-        if (mat.name.startsWith('body_')) {
+        if (mat.name === 'body' || mat.name.startsWith('body_')) {
           mat.transparent = true
           bodyMats.push(mat)
         }
@@ -439,7 +440,7 @@ function TyreHalo({ on }: { on: boolean }) {
 }
 
 /** Battery pack under the floor: 2 × 16 modules, filled to the SoC, limit line at the charge limit. */
-function Pack({ state }: { state: CarState }) {
+function Pack({ state, theme }: { state: CarState; theme: 'light' | 'dark' }) {
   const COLS = 16
   const ROWS = 2
   const geo = useMemo(() => new THREE.BoxGeometry(0.15, 0.1, 0.62), [])
@@ -470,14 +471,19 @@ function Pack({ state }: { state: CarState }) {
     m.visible = show.current > 0.01
     const filled = (state.socPct / 100) * COLS
     const limit = (state.chargeLimitPct / 100) * COLS
-    const health = THREE.MathUtils.clamp((state.sohPct - 90) / 10, 0, 1)
+    // monochrome: charged cells in the ink colour, the cell being filled breathes, the headroom up to the
+    // charge limit is mid-grey, the capacity the limit keeps unused is faint
+    const dark = theme === 'dark'
+    const ink = dark ? 0.95 : 0.13
+    const head = dark ? 0.32 : 0.62
+    const unused = dark ? 0.12 : 0.86
     for (let r = 0; r < ROWS; r++)
       for (let i = 0; i < COLS; i++) {
         const k = r * COLS + i
-        if (i < Math.floor(filled)) c.setRGB(0.1 + 0.15 * (1 - health), 0.75 + 0.2 * health, 0.45 + 0.1 * health)
-        else if (i < filled) c.setRGB(0.15, 0.85, 0.5).multiplyScalar(0.6 + 0.4 * Math.sin(clock.elapsedTime * 4))
-        else if (i < limit) c.setRGB(0.22, 0.24, 0.27)
-        else c.setRGB(0.1, 0.11, 0.12)
+        if (i < Math.floor(filled)) c.setScalar(ink)
+        else if (i < filled) c.setScalar(head + (ink - head) * (0.5 + 0.5 * Math.sin(clock.elapsedTime * 4)))
+        else if (i < limit) c.setScalar(head)
+        else c.setScalar(unused)
         m.setColorAt(k, c)
       }
     if (m.instanceColor) m.instanceColor.needsUpdate = true
@@ -492,7 +498,7 @@ function ChargePort({ state }: { state: CarState }) {
     surfacePoint(-1.62, 0.4, v)
     return v
   }, [])
-  const mat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#34c759', transparent: true, opacity: 0, toneMapped: false }), [])
+  const mat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#0a84ff', transparent: true, opacity: 0, toneMapped: false }), [])
   const geo = useMemo(() => new THREE.RingGeometry(0.05, 0.075, 48), [])
   useEffect(() => () => [geo, mat].forEach((d) => d.dispose()), [geo, mat])
   useFrame(({ clock }) => {
@@ -591,7 +597,7 @@ export function StudioCar({ state, theme = 'light', autoRotate = true, interacti
           </GlbBoundary>
           )}
           <TyreHalo on={state.tyreWarning} />
-          <Pack state={state} />
+          <Pack state={state} theme={theme} />
           <ChargePort state={state} />
         </group>
         <ContactShadows position={[0, 0.001, 0]} opacity={theme === 'dark' ? 0.8 : 0.6} scale={HALF_L * 4.2} blur={2.6} far={2.2} resolution={512} color="#000" />

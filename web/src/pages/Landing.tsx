@@ -54,7 +54,7 @@ const STEPS: { k: string; title: string; body: string; sdk: string; car: Partial
   {
     k: 'tyre',
     title: '경고등이 켜지면,\n가까운 블루핸즈로.',
-    body: '타이어 공기압, 12V 배터리, EV 시스템. 경고등을 읽어 내비에서 블루핸즈를 바로 찾습니다. 미해결 경고등은 감가 요인입니다.',
+    body: '타이어 공기압, 12V 배터리, EV 시스템. 경고등을 읽어 내비에서 블루핸즈를 바로 찾습니다. 미해결 경고등은 자산 가치를 낮추는 요인입니다.',
     sdk: 'Safety.getTelltalesInfo → NaviHelper.SearchPlace',
     car: { tyreWarning: true },
   },
@@ -129,12 +129,12 @@ export default function Landing() {
       <nav className="lp-nav">
         <a href="#/" className="lp-brand">
           <Logo size={22} />
-          제값
+          밸류링크
         </a>
         <div className="lp-links">
           <a href="#guard">지킨다</a>
           <a href="#prove">증명한다</a>
-          <a href="#value">제값 받는다</a>
+          <a href="#value">잇는다</a>
           <a href="#pleos">Pleos</a>
         </div>
         <a className="pill primary small" href="#/console">
@@ -144,11 +144,11 @@ export default function Landing() {
 
       <header className="lp-hero">
         <p className="lp-eyebrow" data-reveal>
-          Pleos Connect 차량 가치 관리 앱
+          Pleos Connect 자산 관리 매니저
         </p>
-        <h1 data-reveal>내 차, 제값 받게.</h1>
+        <h1 data-reveal>내 차, 자산이 되다.</h1>
         <p className="lp-lede" data-reveal>
-          운전할수록 지켜지는 차의 가치. 차가 스스로 지키고, 증명하고, 제값 받게 합니다.
+          당신의 현대차를 자산으로 관리하는 가장 스마트한 방법. 차가 스스로 가치를 지키고, 증명하고, 다음으로 잇습니다.
         </p>
         <div className="lp-cta" data-reveal>
           <a className="pill primary" href="#/car">
@@ -196,7 +196,7 @@ export default function Landing() {
             차가 직접 잰 숫자.
           </h2>
           <p className="lp-sub" data-reveal>
-            현재 배터리 용량(EV_CURRENT_BATTERY_CAPACITY)을 신차 용량으로 나눠, 차가 보고하는 그대로의 건강도를 씁니다. 전기차 중고값을 가장 크게 움직이는 숫자입니다.
+            현재 배터리 용량(EV_CURRENT_BATTERY_CAPACITY)을 신차 용량으로 나눠, 차가 보고하는 그대로의 건강도를 씁니다. 전기차의 자산 가치를 가장 크게 움직이는 숫자입니다.
           </p>
           <div className="lp-stat" data-reveal>
             <b className="num">99.5%</b>
@@ -236,14 +236,14 @@ export default function Landing() {
 
       <section className="lp-value" id="value">
         <p className="lp-eyebrow" data-reveal>
-          제값 받는다
+          잇는다
         </p>
         <h2 data-reveal>현대차그룹으로 돌아오는 가치.</h2>
         <div className="lp-tiles">
           {[
             ['현대 인증중고차', '관리 이력이 검증된 자사 차량을 직접 매입. 좋은 매물을 먼저 확보합니다.'],
-            ['신차 재구매', '감가 구간 직전, 최적 교체 시점에 보상판매로 연결합니다.'],
-            ['블루핸즈', '“지금 고치면 감가 0원.” 경고등이 정비 예약으로 이어집니다.'],
+            ['신차 재구매', '가치 곡선이 꺾이기 직전, 최적의 교체 시점에 보상판매로 잇습니다.'],
+            ['블루핸즈', '“지금 고치면 가치 손실 0원.” 경고등이 정비 예약으로 이어집니다.'],
             ['현대캐피탈', '관리 점수가 높은 차는 리스 잔존가치 우대. 반납 차량 품질이 오릅니다.'],
             ['Pleos App Market', '상세 리포트와 시세 알림 구독. 렌터카·리스 플릿은 차량당 과금.'],
           ].map(([t, d]) => (
@@ -280,7 +280,7 @@ export default function Landing() {
 
       <section className="lp-final">
         <Render name="side_light" alt="측면에서 본 아이오닉 5" className="lp-final-img" />
-        <h2 data-reveal>내 차, 제값 받게.</h2>
+        <h2 data-reveal>내 차, 자산이 되다.</h2>
         <div className="lp-cta" data-reveal>
           <a className="pill primary" href="#/car">
             차량 앱 실행하기
@@ -295,7 +295,7 @@ export default function Landing() {
       </section>
 
       <footer className="lp-foot">
-        <p>제값 JEGAP · 현대자동차그룹 차량용 앱 개발 공모전 출품작 · Pleos Connect</p>
+        <p>밸류링크 ValueLink · 현대자동차그룹 차량용 앱 개발 공모전 출품작 · Pleos Connect</p>
         <p>시세 계수와 제휴 서비스는 출품 시나리오의 가정값입니다. 배터리 건강도·경고등·충전 제어는 Pleos SDK와 AAOS 실측 값입니다.</p>
       </footer>
     </div>

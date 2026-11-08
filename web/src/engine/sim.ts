@@ -1,4 +1,4 @@
-// SimVehicle: "제값의 하루", a scripted day in the life of a 2025 IONIQ 5 Long Range, used by the web demo,
+// SimVehicle: "밸류링크의 하루", a scripted day in the life of a 2025 IONIQ 5 Long Range, used by the web demo,
 // the judges' console and the demo video. Physics is deliberately simple (speed profile, kWh in/out);
 // what matters is that every signal arrives with the same keys the APK's SignalCollector sends, so the
 // engine runs identically on the simulator and on the vehicle.
@@ -71,6 +71,7 @@ export class SimVehicle implements VehicleBus {
       chargeLimitPct: 80,
       chargeCurrentA: 32,
       warnings: [],
+      airbagDeployed: false,
       adasWarnings: 41,
       overSpeedWarnings: 3,
       harshAccel: 0,

@@ -54,6 +54,8 @@ class NaviGateway(
 
     /** Whether route guidance is active (from RouteStateInfo / route events). A waypoint needs a route. */
     @Volatile private var routing = false
+    private var cameraOverSpeed = 0
+    private var overSpeedNow = false
 
     private val listener = object : NaviHelperEventListener {
         override fun onDestinationInfo(info: DestinationInfo) {
@@ -125,6 +127,25 @@ class NaviGateway(
             onEvent("recentDestinations", JSONObject().put("items", JSONArray(list.take(5).map {
                 JSONObject().put("name", it.name).put("lat", it.latitude).put("lon", it.longitude)
             })))
+        }
+
+        /**
+         * Navi's EV charging plan: a DC stop ahead (max charging power, target SoC). Lets the guard check battery
+         * preconditioning before a winter fast charge.
+         */
+        override fun onDrivingInfo(info: ai.pleos.playground.navi.data.DrivingInfo) {
+            val stops = listOf(info.destination) + info.waypoints
+            val charge = stops.filter { it.isChargingStation }.maxByOrNull { it.maxChargingPower }
+            onSignal("fastChargePlanned", charge != null && charge.maxChargingPower >= 50)
+            onSignal("plannedChargeKw", charge?.maxChargingPower ?: 0)
+            onSignal("plannedChargeKm", charge?.distance?.let { it / 1000.0 } ?: 0.0)
+        }
+
+        /** Section / point speed cameras: count each over-speed episode (habits: risk of an accident on record). */
+        override fun onCameraAlert(list: List<ai.pleos.playground.navi.data.CameraAlert>) {
+            val over = list.any { it.isOverSpeed || it.isOverSectionAvrSpeed }
+            if (over && !overSpeedNow) onSignal("cameraOverSpeed", ++cameraOverSpeed)
+            overSpeedNow = over
         }
 
         override fun onBookmarkInfo(list: List<ai.pleos.playground.navi.data.BookmarkInfo>) {

@@ -1,7 +1,7 @@
 {
   "packageName": "com.carvalue.app",
-  "appDescription": "JEGAP keeps the car's resale value: it reads battery health and driving and charging habits, protects the car automatically (charge limit, windows, lights), and keeps a verified vehicle passport for trade-in.",
-  "invokeWord": "제값",
+  "appDescription": "ValueLink keeps the car's resale value: it reads battery health and driving and charging habits, protects the car automatically (charge limit, windows, lights), and keeps a verified vehicle passport for trade-in.",
+  "invokeWord": "밸류링크",
   "version": "1.0.0",
   "actionCalls": [
     {

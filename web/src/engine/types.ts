@@ -1,4 +1,4 @@
-// Shared types for the JEGAP value engine.
+// Shared types for the ValueLink value engine.
 // VehicleSignals is the contract with the Android host: SignalCollector / CarPropertySource keys
 // (android/app/src/main/java/com/carvalue/app/vehicle) arrive here one-for-one.
 
@@ -60,6 +60,16 @@ export interface VehicleSignals {
   lowTireKpa?: number
 
   // habits (derived on the host from the 1 Hz speed feed, brake pedal listener)
+  /** telltale EV_BATTERY_CONDITIONING (pack being warmed before a fast charge) */
+  batteryConditioning?: boolean
+  /** navi DrivingInfo: a DC fast-charging stop on the route */
+  fastChargePlanned?: boolean
+  plannedChargeKw?: number
+  plannedChargeKm?: number
+  /** navi CameraAlert over-speed episodes */
+  cameraOverSpeed?: number
+  /** telltale DRIVE_MODE_SPORT */
+  sportMode?: boolean
   harshAccel?: number
   harshBrake?: number
   brakeEvents?: number
@@ -85,7 +95,7 @@ export interface VehicleSignals {
   blindClosed?: boolean
   doorsLocked?: boolean
   ambientColor?: string
-  /** Last navi screen JEGAP opened (search / chargers), for the console's navi panel. */
+  /** Last navi screen ValueLink opened (search / chargers), for the console's navi panel. */
   navScreen?: string
   placeName?: string
 }

@@ -42,7 +42,7 @@ class GleoReceiver : BroadcastReceiver() {
 
         val channel = WebChannel.active?.get()
         if (channel == null) {
-            reply(response(function, "fail", "Please open JEGAP first, then ask again."))
+            reply(response(function, "fail", "Please open ValueLink first, then ask again."))
             return
         }
         main.postDelayed({ reply(fallback(function)) }, REPLY_DEADLINE_MS)
@@ -77,10 +77,10 @@ class GleoReceiver : BroadcastReceiver() {
     }
 
     private fun fallback(function: String): JSONObject = when (function) {
-        "GET_CAR_VALUE" -> response(function, "fail", "JEGAP has not valued the car yet.")
-        "GET_BATTERY_HEALTH" -> response(function, "fail", "JEGAP could not read the battery health yet.")
-        "SET_CHARGE_LIMIT" -> response(function, "fail", "JEGAP could not change the charging limit right now.")
-        "FIND_SERVICE_CENTER" -> response(function, "fail", "JEGAP could not open the service center search.")
+        "GET_CAR_VALUE" -> response(function, "fail", "ValueLink has not valued the car yet.")
+        "GET_BATTERY_HEALTH" -> response(function, "fail", "ValueLink could not read the battery health yet.")
+        "SET_CHARGE_LIMIT" -> response(function, "fail", "ValueLink could not change the charging limit right now.")
+        "FIND_SERVICE_CENTER" -> response(function, "fail", "ValueLink could not open the service center search.")
         else -> response(function, "fail", "A trade-in quote is available only while parked.")
     }
 

@@ -166,6 +166,9 @@ class SignalCollector(
                 put("warnings", warnings)
                 put("adasWarnings", list.filter { it.type in ADAS }.sumOf { it.warningCount })
                 put("overSpeedWarnings", list.filter { it.type == TelltaleType.OVER_SPEED }.sumOf { it.warningCount })
+                fun on(type: TelltaleType) = list.any { it.type == type && it.state != TelltaleState.OFF }
+                put("batteryConditioning", on(TelltaleType.EV_BATTERY_CONDITIONING))
+                put("sportMode", on(TelltaleType.DRIVE_MODE_SPORT))
                 if (!aaosParkingBrake) {
                     put("parkingBrake", list.any { (it.type == TelltaleType.PARKING_BRAKE || it.type == TelltaleType.ELECTRONIC_PARKING_BRAKE) && it.state != TelltaleState.OFF })
                 }

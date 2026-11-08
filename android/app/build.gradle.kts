@@ -12,7 +12,7 @@ val keystoreProps = Properties().apply {
     val f = rootProject.file("keystore.properties")
     if (f.exists()) f.inputStream().use(::load)
 }
-val apkBaseName = (findProperty("apkBaseName") as String?)?.takeIf { it.isNotBlank() } ?: "JEGAP_jegap"
+val apkBaseName = (findProperty("apkBaseName") as String?)?.takeIf { it.isNotBlank() } ?: "ValueLink"
 val pleosClientId = (findProperty("pleosClientId") as String?).orEmpty()
 val pleosClientSecret = (findProperty("pleosClientSecret") as String?).orEmpty()
 

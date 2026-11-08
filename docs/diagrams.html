@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>밸류링크 diagrams</title>
+<style>
+  @font-face { font-family: 'Pretendard'; src: url('../web/public/fonts/PretendardVariable.woff2') format('woff2-variations'); font-weight: 45 920; }
+  body { margin: 0; background: #fff; font-family: 'Pretendard', sans-serif; color: #1d1d1f; letter-spacing: -0.02em; }
+  .d { width: 1600px; padding: 56px 64px; box-sizing: border-box; background: #f5f5f7; }
+  h2 { margin: 0 0 6px; font-size: 34px; letter-spacing: -0.035em; }
+  .sub { margin: 0 0 34px; font-size: 19px; color: #6e6e73; }
+  .loop { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; position: relative; }
+  .step { background: #fff; border-radius: 28px; padding: 30px 30px 26px; box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 14px 34px rgba(0,0,0,.06); }
+  .step .n { font-size: 15px; font-weight: 700; color: #86868b; }
+  .step h3 { margin: 6px 0 4px; font-size: 32px; letter-spacing: -0.035em; }
+  .step p { margin: 0 0 14px; font-size: 17px; color: #6e6e73; line-height: 1.45; }
+  .step ul { list-style: none; margin: 0; padding: 0; border-top: 1px solid #ececf0; }
+  .step li { padding: 10px 0; border-bottom: 1px solid #f2f2f4; font-size: 15.5px; display: flex; justify-content: space-between; gap: 10px; }
+  .step li code { font-family: ui-monospace, Menlo, monospace; font-size: 12.5px; color: #86868b; }
+  .arrow { text-align: center; font-size: 15px; color: #86868b; margin: 22px 0 10px; }
+  .rev { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  .rev div { background: #1d1d1f; color: #f5f5f7; border-radius: 22px; padding: 22px 20px; }
+  .rev b { display: block; font-size: 20px; letter-spacing: -0.02em; }
+  .rev span { display: block; margin-top: 8px; font-size: 14.5px; color: #a1a1a6; line-height: 1.45; }
+  .arch { display: grid; grid-template-columns: 1fr 1.1fr 1fr; gap: 18px; align-items: stretch; }
+  .col { background: #fff; border-radius: 26px; padding: 26px; box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 14px 34px rgba(0,0,0,.06); }
+  .col h4 { margin: 0 0 12px; font-size: 22px; letter-spacing: -0.03em; }
+  .col .t { font-size: 14px; color: #86868b; font-weight: 600; margin: 14px 0 6px; }
+  .chip { display: inline-block; margin: 0 6px 6px 0; padding: 7px 12px; border-radius: 99px; background: #f5f5f7; font-size: 14px; }
+  .chip.k { background: #1d1d1f; color: #fff; }
+  .mid { display: flex; flex-direction: column; gap: 12px; }
+  .box { background: #1d1d1f; color: #f5f5f7; border-radius: 20px; padding: 18px 20px; }
+  .box b { font-size: 18px; }
+  .box span { display: block; font-size: 14px; color: #a1a1a6; margin-top: 6px; line-height: 1.45; }
+  .note { margin-top: 18px; font-size: 14px; color: #86868b; }
+</style>
+</head>
+<body>
+<section class="d" id="loop">
+  <h2>차가 스스로 지키고, 증명하고, 잇는다</h2>
+  <p class="sub">세 단계가 하나의 고리입니다. 지킨 습관이 여권에 쌓이고, 여권이 매입가가 되고, 매입가가 다시 지킬 이유가 됩니다.</p>
+  <div class="loop">
+    <div class="step">
+      <div class="n">01 지킨다 · Guard</div>
+      <h3>차가 직접 움직입니다</h3>
+      <p>가치를 깎는 순간을 감지하면 Pleos SDK로 차를 제어합니다.</p>
+      <ul>
+        <li>충전 상한 80% / 장거리 전날 100% <code>setEvChargePercentLimit</code></li>
+        <li>비 오는데 열린 창문 닫기 <code>setWindowPosition</code></li>
+        <li>주차 후 켜진 전조등 끄기 <code>setLowBeamLightSwitch</code></li>
+        <li>경고등 → 블루핸즈 검색 <code>getTelltalesInfo · SearchPlace</code></li>
+      </ul>
+    </div>
+    <div class="step">
+      <div class="n">02 증명한다 · Passport</div>
+      <h3>차가 일기를 씁니다</h3>
+      <p>하루 한 블록, 이전 블록의 SHA-256을 품은 위조 불가 이력.</p>
+      <ul>
+        <li>배터리 건강도 차량 실측 <code>EV_CURRENT_BATTERY_CAPACITY</code></li>
+        <li>주행거리 + 바퀴 회전 독립 검증 <code>Odometer · WHEEL_TICK</code></li>
+        <li>에어백 전개·경고등·정비 이력 <code>Safety.*</code></li>
+        <li>충전 습관(급속·완충 비율) <code>EV_CHARGE_STATE</code></li>
+      </ul>
+    </div>
+    <div class="step">
+      <div class="n">03 잇는다 · Link</div>
+      <h3>검증된 차는 더 비쌉니다</h3>
+      <p>정차 중 원터치로 여권 기반 매입가를 받고 다음 차로 이어집니다.</p>
+      <ul>
+        <li>여권 검증 우대 매입가 (7일 보장)</li>
+        <li>최적 교체 시점 알림 → 보상판매</li>
+        <li>관리 점수 → 리스 잔존가치 우대</li>
+        <li>Gleo: “밸류링크, 내 차 가치 어때?”</li>
+      </ul>
+    </div>
+  </div>
+  <div class="arrow">현대차그룹으로 돌아오는 가치</div>
+  <div class="rev">
+    <div><b>현대 인증중고차</b><span>여권으로 걸러진 5년·10만km 이내 무사고 자사 차량을 매입 채널로. 매물 부족 해소.</span></div>
+    <div><b>신차 재구매</b><span>가치 곡선이 꺾이기 직전의 교체 알림이 보상판매와 신차 계약으로.</span></div>
+    <div><b>블루핸즈</b><span>“지금 고치면 가치 손실 0원”: 경고등이 정비 예약으로.</span></div>
+    <div><b>현대캐피탈</b><span>잔존가치 리스크 감소, 반납 차량 품질 향상, 우대 금리.</span></div>
+    <div><b>Pleos App Market</b><span>프리미엄 구독, 플릿 차량당 과금.</span></div>
+  </div>
+</section>
+
+<section class="d" id="arch">
+  <h2>하나의 엔진, 세 개의 화면</h2>
+  <p class="sub">가치 엔진(TypeScript)은 차량 앱·시연 콘솔·플릿에서 같은 코드로 돌고, Kotlin 호스트가 Pleos SDK와 AAOS를 연결합니다.</p>
+  <div class="arch">
+    <div class="col">
+      <h4>차량 (Pleos Connect)</h4>
+      <div class="t">Vehicle SDK 2.3.2 · 읽기</div>
+      <span class="chip">Odometer</span><span class="chip">EvBattery</span><span class="chip">Safety · 텔테일</span><span class="chip">Tire</span><span class="chip">Window</span><span class="chip">Wiper</span><span class="chip">Light</span><span class="chip">Brake</span><span class="chip">CarInfo VIN</span>
+      <div class="t">Vehicle SDK · 제어</div>
+      <span class="chip k">충전 상한·전류</span><span class="chip k">창문</span><span class="chip k">전조등</span><span class="chip k">도어 잠금</span><span class="chip k">블라인드</span>
+      <div class="t">AAOS CarPropertyManager</div>
+      <span class="chip">배터리 현재/설계 용량</span><span class="chip">충전 상태·속도</span><span class="chip">WHEEL_TICK</span><span class="chip">차종·연식</span><span class="chip">속도·기어</span>
+      <div class="t">NaviHelper · FusedLocation · TTS/STT · Gleo</div>
+      <span class="chip">경로·목적지</span><span class="chip">장소 검색</span><span class="chip">충전소</span><span class="chip">즐겨찾기(집)</span><span class="chip">음성 5개 함수</span>
+    </div>
+    <div class="mid">
+      <div class="box"><b>Kotlin 호스트</b><span>SignalCollector 1Hz · CarPropertySource(서비스 재시작 대응) · VehicleGateway(capability 확인 후 제어) · MonitorService(내비 전면 시에도 유지)</span></div>
+      <div class="box"><b>가치 엔진</b><span>valuation(시세 계수) · battery(SOH·충전 세션·열화 예측) · habits(급가속·급제동·운전보조 경고) · passport(SHA-256 체인) · guard(규칙 10종)</span></div>
+      <div class="box"><b>저전력 3D 트윈</b><span>Blender로 굽은 IONIQ 5 모델. 정차 중에만, 상태가 바뀔 때만 렌더(주의분산·성능 가이드)</span></div>
+    </div>
+    <div class="col">
+      <h4>세 개의 화면</h4>
+      <div class="t">차량 앱 (APK)</div>
+      <span class="chip">가치 · 배터리 · 지킨 일 · 여권</span><span class="chip">주행 중 간소화</span><span class="chip">라이트/다크</span>
+      <div class="t">웹 시연 콘솔</div>
+      <span class="chip">밸류링크의 하루 시나리오</span><span class="chip">3D 트윈</span><span class="chip">SDK 호출 로그</span><span class="chip">3년 가치 예측</span>
+      <div class="t">플릿 (B2B)</div>
+      <span class="chip">리스 잔존가치 위험</span><span class="chip">Pleos Fleet API Webhook</span>
+      <p class="note">개인정보: 계산은 전부 차 안(온디바이스). 여권은 사용자 동의 시에만 매입사와 공유.</p>
+    </div>
+  </div>
+</section>
+</body>
+</html>

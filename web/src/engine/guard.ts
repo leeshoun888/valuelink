@@ -19,6 +19,7 @@ export type GuardKind =
   | 'sunBlind'
   | 'warningLamp'
   | 'deepDischarge'
+  | 'precondition'
   | 'harshDriving'
   | 'gentleRoute'
 
@@ -35,7 +36,7 @@ export interface LedgerEntry {
   sdk: string[]
   /** Spoken line. */
   say: string
-  /** The car acted by itself (true) or JEGAP suggested it (false). */
+  /** The car acted by itself (true) or ValueLink suggested it (false). */
   auto: boolean
 }
 
@@ -226,7 +227,7 @@ export const RULES: Rule[] = [
         entry: {
           kind: 'warningLamp',
           title: `경고등: ${names}`,
-          detail: '방치하면 수리비가 커지고, 미해결 경고등은 중고 감정에서 감가돼요.',
+          detail: '방치하면 수리비가 커지고, 미해결 경고등은 자산 가치를 낮게 평가받게 해요.',
           won: valueManwon * 10_000 * 0.02,
           basis: '경고등 1개 미해결 = 차량가 −2% [가정], 블루핸즈 조기 점검으로 회복',
           say: `${names} 경고등이 켜졌어요. 가까운 블루핸즈를 찾아볼까요?`,
@@ -235,9 +236,29 @@ export const RULES: Rule[] = [
           id: 'svc',
           kind: 'warningLamp',
           title: `${names} 점검 필요`,
-          detail: '지금 고치면 감가 0원. 가까운 블루핸즈를 내비에서 찾아요.',
+          detail: '지금 고치면 가치 손실 0원. 가까운 블루핸즈를 내비에서 찾아요.',
           cta: { label: '블루핸즈 찾기', action: { kind: 'searchPlace', value: '블루핸즈', reason: `경고등 ${names}` } },
         },
+      }
+    },
+  },
+  {
+    kind: 'precondition',
+    cooldownMs: 3 * 3600e3,
+    test: ({ sig, valueManwon }) => {
+      if (!sig.fastChargePlanned || (sig.outsideTempC ?? 20) > 5 || sig.batteryConditioning || sig.speedKph < 1) return null
+      const km = sig.plannedChargeKm ? `${Math.round(sig.plannedChargeKm)}km 앞` : '경로 위'
+      return {
+        actions: [],
+        entry: {
+          kind: 'precondition',
+          title: `겨울 급속충전 전 배터리 예열`,
+          detail: `${km} ${sig.plannedChargeKw ?? ''}kW 급속충전소. 바깥이 ${Math.round(sig.outsideTempC ?? 0)}℃라 차가운 배터리로 급속충전하면 열화가 커져요.`,
+          won: sohWon(valueManwon, SOH_PER_CAPPED_SESSION),
+          basis: '저온 급속충전 회피 (EV_BATTERY_CONDITIONING 텔테일 + 내비 충전 계획)',
+          say: '곧 급속충전소예요. 배터리 컨디셔닝을 켜 두면 충전도 빠르고 배터리도 지킬 수 있어요.',
+        },
+        suggestion: { id: 'pre', kind: 'precondition', title: '급속충전 전 배터리 예열', detail: '차량 설정에서 배터리 컨디셔닝을 켜 주세요. 충전이 빨라지고 열화가 줄어요.' },
       }
     },
   },

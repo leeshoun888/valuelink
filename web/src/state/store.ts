@@ -43,7 +43,7 @@ export const useStore = create<Store>((set, get) => ({
     let rt: Runtime
     let sim: SimVehicle | null = null
     if (isNative()) {
-      rt = new Runtime(new NativeVehicle(), { persistKey: 'jegap.v1' })
+      rt = new Runtime(new NativeVehicle(), { persistKey: 'valuelink.v1' })
     } else {
       sim = new SimVehicle()
       rt = new Runtime(sim, { deliveredAt: SIM_DELIVERED })

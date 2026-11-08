@@ -30,7 +30,7 @@ class MonitorService : Service() {
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL, "차량 가치 지킴", NotificationManager.IMPORTANCE_LOW).apply {
-                description = "다른 앱을 쓰는 동안에도 제값이 배터리와 차 상태를 계속 지킵니다."
+                description = "다른 앱을 쓰는 동안에도 밸류링크이 배터리와 차 상태를 계속 지킵니다."
                 setShowBadge(false)
             },
         )
@@ -40,7 +40,7 @@ class MonitorService : Service() {
         )
         val notification = Notification.Builder(this, CHANNEL)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("제값 · 차량 가치 지키는 중")
+            .setContentTitle("밸류링크 · 차량 가치 지키는 중")
             .setContentText("충전, 경고등, 운전 습관을 계속 살피고 있어요.")
             .setOngoing(true)
             .setContentIntent(open)

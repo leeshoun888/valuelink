@@ -19,5 +19,5 @@ export const READ_CALLS: { api: string; call: string; use: string }[] = [
   { api: 'NaviHelper', call: 'getBookmarkInfo · getRouteStateInfo · onDestinationInfo', use: '집 위치·장거리 일정' },
   { api: 'FusedLocation', call: 'requestLocationUpdates', use: '주행 경로' },
   { api: 'TTS / STT', call: 'speak · startListening', use: '음성 안내·응답' },
-  { api: 'Gleo', call: 'schema.json 5 functions → APP_ACTION_RESPONSE', use: '“제값, 내 차 얼마야?”' },
+  { api: 'Gleo', call: 'schema.json 5 functions → APP_ACTION_RESPONSE', use: '“밸류링크, 내 차 가치 어때?”' },
 ]

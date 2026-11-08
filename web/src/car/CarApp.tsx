@@ -81,7 +81,7 @@ export function CarApp({ portrait }: { portrait?: boolean }) {
       <Header snap={snap} />
       {snap.mode === 'driving' ? <DriveView snap={snap} theme={theme} /> : <HomeView snap={snap} theme={theme} portrait={portrait} />}
       {snap.suggestion && <SuggestionBar snap={snap} />}
-      <Caption />
+      <Caption raised={Boolean(snap.suggestion)} />
     </div>
   )
 }
@@ -95,7 +95,7 @@ function Header({ snap }: { snap: Snapshot }) {
     <header className="jg-head">
       <div className="jg-brand">
         <Logo size={46} />
-        <span>제값</span>
+        <span>밸류링크</span>
         <em className={live ? 'live' : ''}>
           <i />
           {live ? 'Pleos 차량 연결' : '시뮬레이션'} · {status}
@@ -160,16 +160,29 @@ function HomeView({ snap, theme, portrait }: { snap: Snapshot; theme: 'light' | 
     <main className="jg-home">
       <section className="jg-hero">
         <div className="jg-hero-copy">
-          <p className="jg-label">내 차의 지금 가치</p>
+          <p className="jg-label">내 차의 자산 가치</p>
           <button className="jg-value num" onClick={() => setSheet('value')}>
             {manwon(snap.value.value)}
           </button>
           <p className="jg-kept">
-            이번 달 지킨 가치 <b className="num">+{won(snap.protectedMonth)}</b>
+            이번 달 지켜낸 가치 <b className="num">+{won(snap.protectedMonth)}</b>
           </p>
           <p className="jg-model">
             {snap.sig.modelYear} {snap.model.name} · <span className="num">{Math.round(snap.sig.odometerKm ?? 0).toLocaleString()}km</span> · 출고 {snap.ageYears.toFixed(1)}년
           </p>
+          <div className="jg-linkrow">
+            <span>
+              관리 점수 <b className="num">{snap.links.careScore}</b>
+            </span>
+            <span>
+              블루멤버스 퀘스트 <b className="num">{snap.links.quests.filter((q) => q.done).length}/{snap.links.quests.length}</b>
+            </span>
+            {snap.links.cpo.eligible && (
+              <span>
+                인증중고차 기준까지 <b className="num">{Math.floor(snap.links.cpo.monthsLeft / 12)}년 {snap.links.cpo.monthsLeft % 12}개월</b>
+              </span>
+            )}
+          </div>
           <div className="jg-factors">
             {snap.value.factors
               .filter((f) => f.key !== 'age' && Math.abs(f.effect) > 0.0005)
@@ -195,7 +208,7 @@ function HomeView({ snap, theme, portrait }: { snap: Snapshot; theme: 'light' | 
             {snap.passport.chainOk && snap.passport.mileageOk ? <span className="ok">주행거리·이력 무결성 확인</span> : <span className="warn">검증 필요</span>}
           </p>
         </div>
-        <span className="pill primary">보상판매 견적 보기</span>
+        <span className="pill primary">자산 가치 리포트</span>
       </section>
 
       {sheet && <Sheet snap={snap} kind={sheet} onClose={() => setSheet(null)} />}
@@ -270,7 +283,7 @@ function GuardCard({ snap, portrait }: { snap: Snapshot; portrait?: boolean }) {
   return (
     <div className="glass jg-guard">
       <div className="jg-guard-head">
-        <p className="jg-label">제값이 지킨 일</p>
+        <p className="jg-label">밸류링크가 지켜낸 가치</p>
         <span className="num">누적 +{won(snap.protectedTotal)}</span>
       </div>
       {items.length === 0 && <p className="jg-sub">아직 기록이 없어요. 주행과 충전을 하면 차가 알아서 지켜요.</p>}
@@ -302,28 +315,7 @@ function Sheet({ snap, kind, onClose }: { snap: Snapshot; kind: 'trade' | 'value
     <div className="jg-sheet-bg" onClick={onClose}>
       <div className="jg-sheet glass solid" onClick={(e) => e.stopPropagation()}>
         {kind === 'trade' && snap.tradeIn ? (
-          <>
-            <p className="jg-label">현대 인증중고차 보상판매 예상 매입가</p>
-            <p className="jg-value num">{manwon(snap.tradeIn.price)}</p>
-            <p className="jg-sub">
-              차량 여권 검증 우대 <b className="up">+{(snap.tradeIn.premium * 100).toFixed(0)}%</b> 포함 · {snap.tradeIn.validDays}일간 유효 (제휴 시나리오)
-            </p>
-            <ul className="jg-sheet-list">
-              <li>
-                주행거리 무결성 <b>{snap.passport.mileageOk ? '확인' : '확인 필요'}</b>
-              </li>
-              <li>
-                에어백 전개 이력 <b>{snap.sig.airbagDeployed ? '있음' : snap.sig.airbagDeployed === false ? '없음' : '실차에서 확인'}</b>
-              </li>
-              <li>
-                배터리 건강도 <b className="num">{snap.battery.soh.toFixed(1)}% (차량 실측)</b>
-              </li>
-              <li>
-                미해결 경고등 <b>{snap.warnings.length ? `${snap.warnings.length}개` : '없음'}</b>
-              </li>
-            </ul>
-          </>
-        ) : (
+          <ReportSheet snap={snap} />        ) : (
           <>
             <p className="jg-label">가치는 이렇게 계산돼요</p>
             <ul className="jg-sheet-list">
@@ -341,7 +333,7 @@ function Sheet({ snap, kind, onClose }: { snap: Snapshot; kind: 'trade' | 'value
                 </li>
               ))}
             </ul>
-            <p className="jg-fine">기준가·감가 계수는 제값의 가정값이에요. 현대 인증중고차 거래 데이터와 연결되면 실거래 기반으로 바뀌어요.</p>
+            <p className="jg-fine">기준가·가치 계수는 밸류링크의 가정값이에요. 현대 인증중고차 거래 데이터와 연결되면 실거래 기반으로 바뀌어요.</p>
           </>
         )}
         <button className="pill secondary" onClick={onClose}>
@@ -349,6 +341,69 @@ function Sheet({ snap, kind, onClose }: { snap: Snapshot; kind: 'trade' | 'value
         </button>
       </div>
     </div>
+  )
+}
+
+/**
+ * 자산 가치 리포트: the "Link" in ValueLink. The car's own record, linked to four Hyundai Motor Group services.
+ * Partnership figures (price window, discounts, points, rate) are proposal-scenario assumptions.
+ */
+function ReportSheet({ snap }: { snap: Snapshot }) {
+  const L = snap.links
+  const ym = (t: number) => `${new Date(t).getFullYear()}년 ${new Date(t).getMonth() + 1}월`
+  const years = Math.floor(L.cpo.monthsLeft / 12)
+  const months = L.cpo.monthsLeft % 12
+  return (
+    <>
+      <div className="jg-report-head">
+        <div>
+          <p className="jg-label">자산 가치 리포트</p>
+          <p className="jg-value num">{manwon(snap.tradeIn!.price)}</p>
+          <p className="jg-sub">
+            현대 인증중고차 예상 매입가 · 여권 검증 우대 <b>+{(snap.tradeIn!.premium * 100).toFixed(0)}%</b> · {snap.tradeIn!.validDays}일 보장
+          </p>
+        </div>
+        <div className="jg-care">
+          <span className="num">{L.careScore}</span>
+          <small>관리 점수</small>
+        </div>
+      </div>
+      <div className="jg-links">
+        <section>
+          <h4>현대 인증중고차</h4>
+          <p>{L.cpo.eligible ? `매입 기준까지 ${years ? `${years}년 ` : ''}${months}개월 · ${L.cpo.kmLeft.toLocaleString()}km 남음` : '매입 기준(5년·10만km·무사고) 밖'}</p>
+          <small>주행거리 무결성 {snap.passport.mileageOk ? '✓' : '확인 필요'} · 에어백 전개 {snap.sig.airbagDeployed ? '있음' : snap.sig.airbagDeployed === false ? '없음 ✓' : '실차 확인'} · SOH {snap.battery.soh.toFixed(1)}% 실측</small>
+        </section>
+        <section>
+          <h4>신차 보상판매</h4>
+          <p>권장 교체 시점 {ym(L.tradeUp.when)}</p>
+          <small>
+            {L.tradeUp.reason}
+            {L.tradeUp.loyaltyDiscount ? ` · 관리 우수 재구매 할인 ${L.tradeUp.loyaltyDiscount}만원` : ''}
+          </small>
+        </section>
+        <section>
+          <h4>블루멤버스 퀘스트</h4>
+          <ul className="jg-quests">
+            {L.quests.map((q) => (
+              <li key={q.id} className={q.done ? 'done' : ''}>
+                <span>{q.title}</span>
+                <i style={{ width: `${(100 * q.progress) / q.target}%` }} />
+                <b className="num">{q.points.toLocaleString()}P</b>
+              </li>
+            ))}
+          </ul>
+        </section>
+        <section>
+          <h4>현대캐피탈</h4>
+          <p>관리 등급 {L.capital.tier}</p>
+          <small>
+            {L.capital.residualBonusPct ? `리스 반납 잔존가치 +${L.capital.residualBonusPct}%p · 재계약 금리 −${L.capital.rateCutPct}%p` : '관리 점수 70점부터 우대'}
+          </small>
+        </section>
+      </div>
+      <p className="jg-fine">매입가 보장·할인·포인트·금리는 현대차그룹 제휴를 전제로 한 출품 시나리오입니다. 여권은 차주가 동의할 때만 공유됩니다.</p>
+    </>
   )
 }
 
@@ -400,8 +455,8 @@ function SuggestionBar({ snap }: { snap: Snapshot }) {
   )
 }
 
-function Caption() {
+function Caption({ raised }: { raised?: boolean }) {
   const caption = useVoice((s) => s.caption)
   if (!caption) return null
-  return <div className="jg-caption">{caption}</div>
+  return <div className={`jg-caption ${raised ? 'raised' : ''}`}>{caption}</div>
 }

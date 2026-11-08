@@ -145,7 +145,7 @@ export const IcSpark = ({ size, ...p }: P) => (
 )
 
 /** KKAEUM brand mark: a sunrise over the horizon inside an eye · "waking" before drowsiness. */
-/** 제값 mark: a shield whose inner line rises like a value curve. Monochrome: follows the text colour. */
+/** 밸류링크 mark: a shield whose inner line rises like a value curve. Monochrome: follows the text colour. */
 export const Logo = ({ size = 28 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden style={{ color: 'inherit' }}>
     <path d="M32 4 L54 12 V30 C54 44 44 54 32 60 C20 54 10 44 10 30 V12 Z" fill="currentColor" />

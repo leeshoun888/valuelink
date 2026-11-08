@@ -126,7 +126,7 @@ export class NativeVehicle implements VehicleBus {
 
 // Gleo Interface (schema.json) actions arrive here and must be answered synchronously.
 type GleoHandler = (json: string) => { status: string; message: string; data?: unknown }
-let gleoHandler: GleoHandler = () => ({ status: 'fail', message: '제값이 아직 준비 중이에요.' })
+let gleoHandler: GleoHandler = () => ({ status: 'fail', message: '밸류링크가 아직 준비 중이에요.' })
 export const setGleoHandler = (fn: GleoHandler) => {
   gleoHandler = fn
 }

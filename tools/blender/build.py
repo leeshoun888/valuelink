@@ -1,4 +1,4 @@
-# Builds the studio IONIQ 5 for JEGAP from the loft exported by export-geometry.ts, bakes ambient
+# Builds the studio IONIQ 5 for ValueLink from the loft exported by export-geometry.ts, bakes ambient
 # occlusion and panel lines into textures, saves car.blend and exports web/public/3d/ioniq5.glb.
 #
 #   Blender -b --python tools/blender/build.py -- <ioniq5.json> <out_dir> [bake_samples]
@@ -49,7 +49,7 @@ def principled(name, color, metallic=0.0, rough=0.5, coat=0.0, coat_rough=0.05, 
 
 ZONES = [
     # name, colour, metallic, roughness, coat
-    ('paint', PAINT, 0.75, 0.33, 1.0),
+    ('paint', PAINT, 0.5, 0.4, 1.0),
     ('glass', '#07080a', 0.0, 0.06, 0.3),
     ('roof', '#0a0c0e', 0.0, 0.06, 0.3),
     ('trim', '#17181b', 0.0, 0.62, 0.0),
@@ -58,7 +58,7 @@ ZONES = [
 ]
 # One body material: colour, roughness / metalness and clear coat all come from textures, so zone borders
 # are as smooth as the texture (per-face material slots left staircase edges in the coat).
-body_mat = principled('body', '#ffffff', 0.0, 0.5, 1.0, 0.06)
+body_mat = principled('body', '#ffffff', 0.0, 0.5, 1.0, 0.1)
 mats = {'body': body_mat}
 
 # ---- body ------------------------------------------------------------------------------------------------
@@ -143,22 +143,26 @@ def side_z_at(x, y):
     return abs(ring[k, 2])
 
 mirror_mat = principled('mirror', '#141518', 0.3, 0.3, 1.0)
+MX = D['dloFront'] - 0.1          # IONIQ 5: mirror on the door, at the front corner of the side glass
 for side in (-1, 1):
-    zc = side * (side_z_at(1.2, 1.2) + 0.11)
-    bpy.ops.mesh.primitive_uv_sphere_add(segments=48, ring_count=24, radius=1, location=bl(1.17, 1.25, zc))
+    base = side_z_at(MX, BELT + 0.04)
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=48, ring_count=24, radius=1, location=bl(MX - 0.03, BELT + 0.1, side * (base + 0.15)))
     pod = bpy.context.object
-    pod.scale = (0.085, 0.11, 0.06)      # blender axes: length, out (web z), height
-    pod.rotation_euler = (0, 0, math.radians(-8 * side))
+    pod.scale = (0.1, 0.12, 0.055)      # blender axes: length, out (web z), height
     pod.data.materials.append(mirror_mat)
     bpy.ops.object.shade_smooth()
-    bpy.ops.mesh.primitive_cylinder_add(vertices=24, radius=0.018, depth=0.12, location=bl(1.2, 1.2, side * (side_z_at(1.2, 1.2) + 0.05)), rotation=(math.pi / 2, 0, 0))
-    stalk = bpy.context.object
-    stalk.data.materials.append(mirror_mat)
-    bpy.ops.object.shade_smooth()
+    bpy.ops.mesh.primitive_cube_add(size=1, location=bl(MX, BELT + 0.055, side * (base + 0.05)))
+    arm = bpy.context.object
+    arm.scale = (0.07, 0.12, 0.025)
+    bv = arm.modifiers.new('bevel', 'BEVEL')
+    bv.width = 0.01
+    bv.segments = 3
+    arm.data.materials.append(mirror_mat)
     bpy.ops.object.select_all(action='DESELECT')
     pod.select_set(True)
-    stalk.select_set(True)
+    arm.select_set(True)
     bpy.context.view_layer.objects.active = pod
+    bpy.ops.object.convert(target='MESH')
     bpy.ops.object.join()
     pod.name = 'mirror_l' if side < 0 else 'mirror_r'
 
@@ -255,22 +259,33 @@ for cx, tag in ((WX[0], 'f'), (WX[1], 'r')):
 TW, TH = 4096, 2048
 detail = np.ones((TH, TW), dtype=np.float64)
 
-def draw(segs, value, width_px):
+def draw(segs, value, width_mm):
+    """Anti-aliased lines: every texel near a segment darkens by its true distance to it (in millimetres,
+    so the gap is equally thin along the car and around it), with a soft 1-texel edge."""
     segs = np.array(segs).reshape(-1, 4)
+    L = 2 * D['HALF_L'] * 1000 * (math.pi / 2)    # mm per unit u (arc of the cosine spacing, approx.)
+    C = 7100.0                                     # mm per unit v (section perimeter, approx.)
+    sx, sy = L / TW, C / TH                        # mm per texel
+    half = width_mm / 2
     for u0, v0, u1, v1 in segs:
-        x0, y0, x1, y1 = u0 * (TW - 1), v0 * (TH - 1), u1 * (TW - 1), v1 * (TH - 1)
-        n = int(max(abs(x1 - x0), abs(y1 - y0)) * 2) + 2
-        xs = np.linspace(x0, x1, n)
-        ys = np.linspace(y0, y1, n)
-        for dx in range(-width_px, width_px + 1):
-            for dy in range(-1, 2):
-                xi = np.clip(np.round(xs + dx).astype(int), 0, TW - 1)
-                yi = np.clip(np.round(ys + dy).astype(int), 0, TH - 1)
-                fall = math.exp(-(dx * dx) / (2 * max(1, width_px) ** 2) - (dy * dy) / 1.2)
-                detail[yi, xi] = np.minimum(detail[yi, xi], 1 - (1 - value) * fall)
+        x0, y0, x1, y1 = u0 * TW, v0 * TH, u1 * TW, v1 * TH
+        pad = int(math.ceil((half + 2 * max(sx, sy)) / min(sx, sy))) + 1
+        xa, xb = int(max(0, min(x0, x1) - pad)), int(min(TW, max(x0, x1) + pad + 1))
+        ya, yb = int(max(0, min(y0, y1) - pad)), int(min(TH, max(y0, y1) + pad + 1))
+        if xb <= xa or yb <= ya:
+            continue
+        X, Y = np.meshgrid(np.arange(xa, xb) + 0.5, np.arange(ya, yb) + 0.5)
+        ax, ay = (X - x0) * sx, (Y - y0) * sy
+        bx, by = (x1 - x0) * sx, (y1 - y0) * sy
+        t = np.clip((ax * bx + ay * by) / max(bx * bx + by * by, 1e-9), 0, 1)
+        d = np.hypot(ax - t * bx, ay - t * by)
+        edge = max(sx, sy)
+        cover = np.clip((half + edge - d) / (2 * edge), 0, 1)
+        block = detail[ya:yb, xa:xb]
+        detail[ya:yb, xa:xb] = np.minimum(block, 1 - (1 - value) * cover)
 
-draw(D['gaps'], 0.04, 3)
-draw(D['creases'], 0.72, 4)
+draw(D['gaps'], 0.05, 4.0)       # 4 mm panel gaps
+draw(D['creases'], 0.8, 9.0)      # soft crease shadow
 
 # ---- bake ambient occlusion ------------------------------------------------------------------------------
 
@@ -372,9 +387,15 @@ def texel_zones(w, h):
 # ---- compose the body textures --------------------------------------------------------------------------
 
 def up(a, w, h):
-    yi = (np.arange(h) * a.shape[0] / h).astype(int)
-    xi = (np.arange(w) * a.shape[1] / w).astype(int)
-    return a[yi][:, xi]
+    """Bilinear upsample (nearest left visible steps in the AO)."""
+    fy = (np.arange(h) + 0.5) * a.shape[0] / h - 0.5
+    fx = (np.arange(w) + 0.5) * a.shape[1] / w - 0.5
+    y0 = np.clip(np.floor(fy).astype(int), 0, a.shape[0] - 1); y1 = np.clip(y0 + 1, 0, a.shape[0] - 1)
+    x0 = np.clip(np.floor(fx).astype(int), 0, a.shape[1] - 1); x1 = np.clip(x0 + 1, 0, a.shape[1] - 1)
+    ty = np.clip(fy - y0, 0, 1)[:, None]; tx = np.clip(fx - x0, 0, 1)[None, :]
+    top = a[y0][:, x0] * (1 - tx) + a[y0][:, x1] * tx
+    bot = a[y1][:, x0] * (1 - tx) + a[y1][:, x1] * tx
+    return top * (1 - ty) + bot * ty
 
 # zone image: rows = v (around the section), cols = u (along the length)
 zimg = texel_zones(TW, TH)

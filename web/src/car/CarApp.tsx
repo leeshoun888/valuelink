@@ -67,6 +67,7 @@ export function carStateOf(s: Snapshot, xray = false): CarState {
 
 export function CarApp({ portrait }: { portrait?: boolean }) {
   const snap = useStore((s) => s.snap)
+  const sheet = useStore((s) => s.sheet)
   const theme = useTheme(snap)
   if (!snap) {
     return (
@@ -80,8 +81,8 @@ export function CarApp({ portrait }: { portrait?: boolean }) {
       <Scene snap={snap} theme={theme} portrait={portrait} />
       <Header snap={snap} />
       {snap.mode === 'driving' ? <DriveView snap={snap} theme={theme} /> : <HomeView snap={snap} theme={theme} portrait={portrait} />}
-      {snap.suggestion && <SuggestionBar snap={snap} />}
-      <Caption raised={Boolean(snap.suggestion)} />
+      {snap.suggestion && !sheet && <SuggestionBar snap={snap} />}
+      {!sheet && <Caption raised={Boolean(snap.suggestion)} />}
     </div>
   )
 }
@@ -99,6 +100,7 @@ function Header({ snap }: { snap: Snapshot }) {
         <em className={live ? 'live' : ''}>
           <i />
           {live ? 'Pleos 차량 연결' : '시뮬레이션'} · {status}
+          {useStore.getState().runtime?.ageOffsetYears ? ' · 교체 시점 미리보기' : ''}
         </em>
       </div>
       <div className="jg-head-r">
@@ -114,6 +116,7 @@ function Header({ snap }: { snap: Snapshot }) {
         {menu && (
           <div className="jg-menu" onClick={() => setMenu(false)}>
             <button onClick={() => useStore.getState().loadDemoHistory()}>시연용 이력 불러오기</button>
+            <button onClick={() => useStore.getState().previewTradeUp()}>교체 시점 미리보기</button>
             <button onClick={() => useStore.getState().setCarTheme(useStore.getState().carTheme === 'dark' ? 'light' : 'dark')}>화면 테마 전환</button>
           </div>
         )}
@@ -153,7 +156,8 @@ function Scene({ snap, theme, portrait }: { snap: Snapshot; theme: 'light' | 'da
 // ---- parked / charging -------------------------------------------------------------------------------
 
 function HomeView({ snap, theme, portrait }: { snap: Snapshot; theme: 'light' | 'dark'; portrait?: boolean }) {
-  const [sheet, setSheet] = useState<'trade' | 'value' | null>(null)
+  const sheet = useStore((s) => s.sheet)
+  const setSheet = useStore((s) => s.setSheet)
   void theme
   void portrait
   return (
@@ -177,10 +181,16 @@ function HomeView({ snap, theme, portrait }: { snap: Snapshot; theme: 'light' | 
             <span>
               블루멤버스 퀘스트 <b className="num">{snap.links.quests.filter((q) => q.done).length}/{snap.links.quests.length}</b>
             </span>
-            {snap.links.cpo.eligible && (
-              <span>
-                인증중고차 기준까지 <b className="num">{Math.floor(snap.links.cpo.monthsLeft / 12)}년 {snap.links.cpo.monthsLeft % 12}개월</b>
+            {snap.links.tradeUp.due ? (
+              <span className="due" onClick={() => setSheet('tradeUp')}>
+                교체 최적 시점 <b>지금</b>
               </span>
+            ) : (
+              snap.links.cpo.eligible && (
+                <span>
+                  인증중고차 기준까지 <b className="num">{Math.floor(snap.links.cpo.monthsLeft / 12)}년 {snap.links.cpo.monthsLeft % 12}개월</b>
+                </span>
+              )
             )}
           </div>
           <div className="jg-factors">
@@ -310,7 +320,8 @@ function GuardRow({ e, now }: { e: LedgerEntry; now: number }) {
   )
 }
 
-function Sheet({ snap, kind, onClose }: { snap: Snapshot; kind: 'trade' | 'value'; onClose: () => void }) {
+function Sheet({ snap, kind, onClose }: { snap: Snapshot; kind: 'trade' | 'value' | 'tradeUp'; onClose: () => void }) {
+  if (kind === 'tradeUp') return <TradeUpSheet snap={snap} onClose={onClose} />
   return (
     <div className="jg-sheet-bg" onClick={onClose}>
       <div className="jg-sheet glass solid" onClick={(e) => e.stopPropagation()}>
@@ -374,8 +385,8 @@ function ReportSheet({ snap }: { snap: Snapshot }) {
           <p>{L.cpo.eligible ? `매입 기준까지 ${years ? `${years}년 ` : ''}${months}개월 · ${L.cpo.kmLeft.toLocaleString()}km 남음` : '매입 기준(5년·10만km·무사고) 밖'}</p>
           <small>주행거리 무결성 {snap.passport.mileageOk ? '✓' : '확인 필요'} · 에어백 전개 {snap.sig.airbagDeployed ? '있음' : snap.sig.airbagDeployed === false ? '없음 ✓' : '실차 확인'} · SOH {snap.battery.soh.toFixed(1)}% 실측</small>
         </section>
-        <section>
-          <h4>신차 보상판매</h4>
+        <section className="tap" onClick={() => useStore.getState().setSheet('tradeUp')}>
+          <h4>신차 보상판매 ›</h4>
           <p>권장 교체 시점 {ym(L.tradeUp.when)}</p>
           <small>
             {L.tradeUp.reason}
@@ -404,6 +415,65 @@ function ReportSheet({ snap }: { snap: Snapshot }) {
       </div>
       <p className="jg-fine">매입가 보장·할인·포인트·금리는 현대차그룹 제휴를 전제로 한 출품 시나리오입니다. 여권은 차주가 동의할 때만 공유됩니다.</p>
     </>
+  )
+}
+
+/** 새 차로 잇기: the passport price becomes the down payment for the next Hyundai, financed by Hyundai Capital. */
+function TradeUpSheet({ snap, onClose }: { snap: Snapshot; onClose: () => void }) {
+  const tu = snap.links.tradeUp
+  const o = tu.offer
+  const rt = useStore((s) => s.runtime)
+  const ym = (t: number) => `${new Date(t).getFullYear()}년 ${new Date(t).getMonth() + 1}월`
+  return (
+    <div className="jg-sheet-bg" onClick={onClose}>
+      <div className="jg-sheet glass solid" onClick={(e) => e.stopPropagation()}>
+        <p className="jg-label">새 차로 잇기 · 권장 교체 시점 {ym(tu.when)}</p>
+        <p className="jg-tu-model">{o.model}</p>
+        <div className="jg-tu">
+          <div>
+            <small>신차 가격</small>
+            <b className="num">{manwon(o.newPrice)}</b>
+          </div>
+          <span>−</span>
+          <div>
+            <small>내 차 매입가 (현대 인증중고차, 여권 우대)</small>
+            <b className="num">{manwon(o.tradeIn)}</b>
+          </div>
+          <span>−</span>
+          <div>
+            <small>관리 우수 재구매 할인</small>
+            <b className="num">{manwon(o.discount)}</b>
+          </div>
+          <span>=</span>
+          <div className="net">
+            <small>실 부담</small>
+            <b className="num">{manwon(o.net)}</b>
+          </div>
+        </div>
+        <div className="jg-tu-capital">
+          <div>
+            <small>현대캐피탈 {o.months}개월 할부 · 관리 점수 우대 금리 {o.ratePct}%</small>
+            <b className="num">월 {Math.round(o.monthly).toLocaleString()}만원</b>
+          </div>
+          <span>블루멤버스 {snap.links.pointsThisMonth.toLocaleString()}P 사용 가능</span>
+        </div>
+        <p className="jg-fine">{tu.reason}. 매입가·할인·금리는 현대차그룹 제휴를 전제로 한 출품 시나리오입니다.</p>
+        <div className="jg-tu-act">
+          <button className="pill secondary" onClick={onClose}>
+            나중에
+          </button>
+          <button
+            className="pill primary"
+            onClick={() => {
+              void rt?.findShowroom()
+              onClose()
+            }}
+          >
+            가까운 현대 지점 찾기
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -446,7 +516,15 @@ function SuggestionBar({ snap }: { snap: Snapshot }) {
           나중에
         </button>
         {s.cta && (
-          <button className="pill primary" onClick={() => void rt?.accept()}>
+          <button
+            className="pill primary"
+            onClick={() => {
+              if (s.cta?.sheet) {
+                useStore.getState().setSheet(s.cta.sheet)
+                rt?.dismiss()
+              } else void rt?.accept()
+            }}
+          >
             {s.cta.label}
           </button>
         )}

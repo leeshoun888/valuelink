@@ -38,6 +38,18 @@ export interface Links {
     when: number // epoch ms
     reason: string
     loyaltyDiscount: number // 만원 [assumption]
+    /** inside the recommended window: the car proactively suggests the trade-up */
+    due: boolean
+    offer: {
+      model: string
+      newPrice: number // 만원 [assumption]
+      tradeIn: number // 만원
+      discount: number // 만원
+      net: number // 만원
+      months: number
+      ratePct: number // Hyundai Capital instalment [assumption]
+      monthly: number // 만원
+    }
   }
   quests: Quest[]
   pointsThisMonth: number
@@ -63,6 +75,7 @@ export interface LinkInput {
   /** sessions this month that ended at or below 85 % */
   cappedSessionsThisMonth: number
   kmPerYear?: number
+  newPrice?: number
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
@@ -98,11 +111,7 @@ export function links(i: LinkInput): Links {
   return {
     careScore: score,
     cpo: { eligible, monthsLeft, kmLeft: Math.max(0, Math.round(CPO_MAX_KM - i.odometerKm)), limit: eligible ? limit : 'accident', price: Math.round((i.valueManwon * (1 + i.premium)) / 10) * 10, validDays: 7 },
-    tradeUp: {
-      when: when.getTime(),
-      reason: eligible ? `인증중고차 매입 기준(${limit === 'age' ? '출고 5년' : '10만km'}) 만료 3개월 전` : '가치 곡선이 가장 가파르게 꺾이기 전',
-      loyaltyDiscount: score >= 85 ? 100 : score >= 70 ? 50 : 0,
-    },
+    tradeUp: tradeUp(i, eligible, limit, monthsLeft, when.getTime(), score),
     quests,
     pointsThisMonth: quests.filter((q) => q.done).reduce((a, q) => a + q.points, 0),
     capital: {
@@ -122,4 +131,23 @@ export function decodeVin(vin?: string): { maker: string; year?: number } | null
   const letters = 'ABCDEFGHJKLMNPRSTVWXY'
   const k = letters.indexOf(code)
   return { maker, year: k >= 0 ? 2010 + k : undefined }
+}
+
+/** Next-car offer: trade-in at the passport price, a loyalty discount for a well-kept car, Hyundai Capital terms. */
+function tradeUp(i: LinkInput, eligible: boolean, limit: string, monthsLeft: number, when: number, score: number): Links['tradeUp'] {
+  const loyaltyDiscount = score >= 85 ? 100 : score >= 70 ? 50 : 0
+  const tradeIn = Math.round((i.valueManwon * (1 + i.premium)) / 10) * 10
+  const newPrice = i.newPrice ?? 5_550 // 2027 IONIQ 5 Long Range [assumption]
+  const net = Math.max(0, newPrice - tradeIn - loyaltyDiscount)
+  const months = 36
+  const ratePct = score >= 85 ? 4.5 : 4.9 // [assumption] care-score rate
+  const r = ratePct / 100 / 12
+  const monthly = (net * r) / (1 - Math.pow(1 + r, -months))
+  return {
+    when,
+    reason: eligible ? `인증중고차 매입 기준(${limit === 'age' ? '출고 5년' : '10만km'}) 만료 3개월 전` : '가치 곡선이 가장 가파르게 꺾이기 전',
+    loyaltyDiscount,
+    due: eligible && monthsLeft <= 6,
+    offer: { model: '아이오닉 5 롱레인지 (2027년형)', newPrice, tradeIn, discount: loyaltyDiscount, net, months, ratePct, monthly },
+  }
 }

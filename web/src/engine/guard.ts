@@ -20,6 +20,7 @@ export type GuardKind =
   | 'warningLamp'
   | 'deepDischarge'
   | 'precondition'
+  | 'tradeUp'
   | 'harshDriving'
   | 'gentleRoute'
 
@@ -45,7 +46,7 @@ export interface Suggestion {
   kind: GuardKind
   title: string
   detail: string
-  cta?: { label: string; action: VehicleAction }
+  cta?: { label: string; action?: VehicleAction; /** opens an in-app sheet instead of a vehicle action */ sheet?: 'tradeUp' }
 }
 
 export interface GuardContext {

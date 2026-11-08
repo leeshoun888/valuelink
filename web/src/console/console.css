@@ -339,3 +339,7 @@
     display: none;
   }
 }
+.mc-triggers button.strong {
+  background: #1d1d1f;
+  color: #fff;
+}

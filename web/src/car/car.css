@@ -830,3 +830,107 @@
 .jg-app.is-portrait .jg-linkrow {
   display: none;
 }
+
+/* trade-up (새 차로 잇기) */
+.jg-links section.tap {
+  cursor: pointer;
+}
+.jg-linkrow .due {
+  cursor: pointer;
+}
+.jg-linkrow .due::after {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-left: 10px;
+  border-radius: 50%;
+  background: var(--c-accent);
+  vertical-align: middle;
+}
+.jg-tu-model {
+  margin: 6px 0 0;
+  font-size: 44px;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+}
+.jg-tu {
+  margin-top: 26px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.jg-tu > div {
+  flex: 1;
+  padding: 20px 22px;
+  border-radius: 24px;
+  background: var(--c-fill);
+}
+.jg-tu > span {
+  font-size: 34px;
+  color: var(--c-3);
+}
+.jg-tu small,
+.jg-tu-capital small {
+  display: block;
+  font-size: 19px;
+  color: var(--c-2);
+  line-height: 1.35;
+}
+.jg-tu b {
+  display: block;
+  margin-top: 6px;
+  font-size: 34px;
+  letter-spacing: -0.03em;
+}
+.jg-tu .net {
+  background: var(--c-text);
+  color: var(--c-card, #fff);
+}
+.jg-app[data-theme='light'] .jg-tu .net,
+.jg-app:not([data-theme]) .jg-tu .net {
+  color: #fff;
+}
+.jg-app[data-theme='dark'] .jg-tu .net {
+  color: #000;
+}
+.jg-tu .net small {
+  color: inherit;
+  opacity: 0.7;
+}
+.jg-tu-capital {
+  margin-top: 16px;
+  padding: 22px 26px;
+  border-radius: 24px;
+  background: var(--c-fill);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+}
+.jg-tu-capital b {
+  display: block;
+  margin-top: 4px;
+  font-size: 40px;
+  letter-spacing: -0.035em;
+}
+.jg-tu-capital span {
+  font-size: 22px;
+  color: var(--c-2);
+}
+.jg-tu-act {
+  display: flex;
+  justify-content: flex-end;
+  gap: 14px;
+  margin-top: 24px;
+}
+.jg-tu-act .pill {
+  margin-top: 0 !important;
+}
+.jg-app.is-portrait .jg-tu {
+  flex-direction: column;
+  align-items: stretch;
+}
+.jg-app.is-portrait .jg-tu > span {
+  display: none;
+}

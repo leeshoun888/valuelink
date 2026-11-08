@@ -104,7 +104,10 @@ dependencies {
 val copyWebDist by tasks.registering(Sync::class) {
     description = "Mirrors ../web/dist (Vite build) into src/main/assets/web, removing stale hashed bundles."
     group = "carvalue"
-    from(webDist)
+    from(webDist) {
+        // web-only assets: landing-page Cycles renders and the black build used for them
+        exclude("3d/renders/**", "3d/ioniq5_black.glb")
+    }
     into(webAssets)
     onlyIf {
         val present = webDist.resolve("index.html").exists()

@@ -154,6 +154,9 @@ function Triggers() {
       >
         겨울 급속충전 경로
       </button>
+      <button className="strong" onClick={t(() => useStore.getState().previewTradeUp())}>
+        교체 시점 미리보기 (출고 4년 7개월)
+      </button>
     </div>
   )
 }

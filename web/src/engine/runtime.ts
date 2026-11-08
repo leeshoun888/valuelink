@@ -210,9 +210,9 @@ export class Runtime {
   /** Accept the current suggestion's call to action (driver tapped, or said yes). */
   async accept() {
     const s = this.suggestion
-    if (!s?.cta) return false
+    if (!s?.cta?.action) return false
     this.suggestion = null
-    const ok = await this.bus.apply(s.cta.action)
+    const ok = await this.bus.apply(s.cta.action!)
     this.say(ok ? `${s.cta.label}를 열었어요.` : '내비를 열 수 없어요.')
     return ok
   }
@@ -234,6 +234,11 @@ export class Runtime {
     return ok
   }
 
+  /** From the trade-up sheet: open navi search for the nearest Hyundai showroom. */
+  async findShowroom() {
+    return this.bus.apply({ kind: 'searchPlace', value: '현대자동차 지점', reason: '보상판매 상담' })
+  }
+
   async findService() {
     return this.bus.apply({ kind: 'searchPlace', value: '블루핸즈', reason: '운전자 요청' })
   }
@@ -246,6 +251,8 @@ export class Runtime {
   // ---- passport -----------------------------------------------------------------------------------------
 
   private sealPassport(sig: VehicleSignals) {
+    // On the vehicle, wait for the real odometer: sealing a block at 0 km would break the mileage witness.
+    if (this.bus.kind === 'native' && sig.odometerKm === undefined) return
     const day = dayKey(sig.t)
     const last = this.passport.blocks.at(-1)
     if (last && last.day === day && sig.t % 60_000 > 2_000) return // refresh once a minute
@@ -283,8 +290,28 @@ export class Runtime {
 
   // ---- valuation ----------------------------------------------------------------------------------------
 
+  /** Demo only ("교체 시점 미리보기"): look at the car this many years from now. */
+  ageOffsetYears = 0
+
   ageYears(t: number) {
-    return Math.max(0, (t - this.deliveredAt) / (365.25 * 864e5))
+    return Math.max(0, (t - this.deliveredAt) / (365.25 * 864e5) + this.ageOffsetYears)
+  }
+
+  /** Trade-up window reached: suggest it once a month (asset frame: "잇다", the next car). */
+  private lastTradeUpAt = -Infinity
+  private checkTradeUp(snap: Snapshot) {
+    const tu = snap.links.tradeUp
+    if (!tu.due || snap.mode === 'driving' || snap.sig.t - this.lastTradeUpAt < 30 * 864e5 || this.suggestion) return
+    this.lastTradeUpAt = snap.sig.t
+    const m = Math.max(1, Math.round((snap.links.cpo.monthsLeft)))
+    this.suggestion = {
+      id: 'tradeup',
+      kind: 'tradeUp',
+      title: `교체 최적 시점: 인증중고차 매입 기준까지 ${m}개월`,
+      detail: `지금 보상판매하면 매입가 ${Math.round(tu.offer.tradeIn).toLocaleString()}만원${tu.offer.discount ? ` + 재구매 할인 ${tu.offer.discount}만원` : ''}. 새 차로 잇는 견적을 볼까요?`,
+      cta: { label: '새 차로 잇기', sheet: 'tradeUp' },
+    }
+    this.say(`지금이 차를 바꾸기 가장 좋은 시점이에요. 인증중고차 매입 기준까지 ${m}개월 남았어요.`)
   }
 
   private valueNow(sig: VehicleSignals): Valuation {
@@ -391,6 +418,8 @@ export class Runtime {
       vin: decodeVin(sig.vin),
       speaking: this.speaking,
     }
+    this.checkTradeUp(this.snap)
+    if (this.suggestion !== this.snap.suggestion) this.snap = { ...this.snap, suggestion: this.suggestion }
     this.listeners.forEach((l) => l(this.snap!))
   }
 

@@ -1,160 +1,114 @@
-// Shared domain types for the KKAEUM engine. The same engine runs in the browser
-// (simulated vehicle) and inside the Pleos Connect APK (real Vehicle SDK via bridge).
+// Shared types for the JEGAP value engine.
+// VehicleSignals is the contract with the Android host: SignalCollector / CarPropertySource keys
+// (android/app/src/main/java/com/carvalue/app/vehicle) arrive here one-for-one.
 
 export type Gear = 'P' | 'R' | 'N' | 'D'
 
-export type LngLat = [number, number]
+/** A telltale that is on now (Safety.getTelltalesInfo). `count` is the car's own warningCount. */
+export interface Warning {
+  type: string
+  state: string
+  count: number
+}
 
-/** Raw signals the engine consumes every tick. Anything optional may be unsupported on a given vehicle. */
+export type ChargeState = 'charging' | 'full' | 'idle' | 'error' | 'unknown'
+
 export interface VehicleSignals {
-  t: number // epoch ms (sim or wall clock)
+  t: number // epoch ms
   speedKph: number
   gear: Gear
   parkingBrake: boolean
-  cruiseOn?: boolean
-  driveMode?: string
-  tripMinutes?: number
+
+  // identity (AAOS INFO_* / Pleos CarInfo)
+  make?: string
+  model?: string
+  modelYear?: number
+  fuelType?: string
+  vin?: string
+
+  // mileage (Pleos Odometer, AAOS WHEEL_TICK as an independent witness)
+  odometerKm?: number
+  wheelTickKm?: number
   tripKm?: number
-  // HVAC
-  recirculation: boolean
-  setTempC: number
-  cabinTempC?: number
+
+  // battery & charging (AAOS EV_* + Pleos EvBattery)
+  socPct?: number
+  rangeKm?: number
+  batteryCapWh?: number
+  batteryDesignWh?: number
+  chargeState?: ChargeState
+  chargeKw?: number
+  chargeMinLeft?: number
+  plugged?: boolean
+  chargePortOpen?: boolean
+  chargeLimitPct?: number
+  chargeCurrentA?: number
+  evEfficiency?: number
+
+  // condition (Pleos Safety / Tire, when the vehicle exposes them)
+  warnings?: Warning[]
+  adasWarnings?: number
+  overSpeedWarnings?: number
+  engineOil?: string
+  brakeFluid?: string
+  transmissionOil?: string
+  lowWasher?: boolean
+  airbagDeployed?: boolean
+  powerDownWarning?: boolean
+  lowTireKpa?: number
+
+  // habits (derived on the host from the 1 Hz speed feed, brake pedal listener)
+  harshAccel?: number
+  harshBrake?: number
+  brakeEvents?: number
+  driveMode?: string
+
+  // cabin & environment
+  windowsOpen?: number
+  raining?: boolean
+  headlightsOn?: boolean
   outsideTempC?: number
-  fanSpeed: number // 0..8
-  acOn?: boolean
-  seatVentDriver?: number // 0..3
-  seatRecline?: number // degrees (driver)
-  windowOpenPct?: number // driver window 0..100
-  ambient?: { color: string; brightness: number }
-  occupants: number
-  // Safety
-  dawWarning?: boolean // driver attention warning raised by the vehicle
-  turnSignalEvents?: number // cumulative count
-  steeringActivity?: number // 0..1 (micro-correction entropy proxy)
-  // Location / navigation
-  position?: LngLat
+
+  // location & navi
+  position?: [number, number] // [lng, lat]
   headingDeg?: number
-  routeProgressKm?: number
-  /** false = off the bundled corridor route: progress is distance driven and stops come from the heading cone. */
-  onRoute?: boolean
   routeRemainingKm?: number
   routeEtaMin?: number
-  roadClass?: 'highway' | 'urban' | 'rural'
-  // Pleos listeners added for the fatigue model and charge-aware stops
-  headlightsOn?: boolean // low beam on → driving in the dark
-  cruiseTargetKph?: number
-  raining?: boolean // front wiper running
-  brakeEvents?: number // cumulative pedal presses
-  socPct?: number // traction battery state of charge
-  rangeKm?: number
-  seatHeat?: number // driver seat heating level (0 = off)
-  wheelHeat?: number // steering-wheel heating level
-  dmsDrowsy?: boolean // vehicle DMS drowsiness warning (Pleos vendor property, privileged)
-  // NaviHelper
-  tbtNextM?: number // distance to the next manoeuvre
-  tbtNext?: string
-  cautionType?: string // nearest risk point ahead (FOG_AREA, ACCIDENT_PRONE_AREA, …)
-  cautionM?: number
   navStatus?: string
-  /** Vehicle UI night mode (Configuration.uiMode), sent by the APK host. */
+
+  /** Vehicle day/night UI mode (APK only). */
   uiNight?: boolean
-  outsidePm25?: number // µg/m³ (from public air quality data along the route)
-}
 
-export interface DriverProfile {
-  name: string
-  wakeTime: number // epoch ms the driver woke up today
-  sleepHours: number // last night's sleep
-  chronotype: number // -1 (morning lark) .. +1 (night owl), shifts circadian acrophase
-}
-
-export type RiskLevel = 0 | 1 | 2 | 3 | 4
-
-export interface Contribution {
-  key:
-    | 'sleepPressure'
-    | 'circadian'
-    | 'postLunch'
-    | 'timeOnTask'
-    | 'darkness'
-    | 'warmth'
-    | 'monotony'
-    | 'co2'
-    | 'thermal'
-    | 'probe'
-    | 'daw'
-    | 'countermeasure'
-  label: string
-  value: number // KSS points (+ raises sleepiness)
-}
-
-export interface FatigueEstimate {
-  kss: number // Karolinska Sleepiness Scale equivalent, 1..9
-  level: RiskLevel
-  confidence: number // 0..1
-  contributions: Contribution[]
-  minutesToDanger: number | null // forecast until KSS >= 7 at current trajectory
-}
-
-export interface ProbeResult {
-  t: number
-  reactionMs: number
-  correct: boolean
-  lapse: boolean
+  // Simulator-only state the 3D twin shows (the APK does not read these back).
+  blindClosed?: boolean
+  doorsLocked?: boolean
+  ambientColor?: string
+  /** Last navi screen JEGAP opened (search / chargers), for the console's navi panel. */
+  navScreen?: string
+  placeName?: string
 }
 
 export type ActionKind =
-  | 'freshAir'
-  | 'recirculation'
-  | 'temperature'
-  | 'fan'
+  | 'chargeLimit'
+  | 'chargeCurrent'
+  | 'closeWindows'
+  | 'lightsAuto'
+  | 'lockDoors'
+  | 'blind'
   | 'ambient'
-  | 'seatVent'
-  | 'seatRecline'
-  | 'window'
-  | 'waypoint'
-  | 'speak'
-  | 'engage'
-  | 'probe'
-  | 'napStart'
-  | 'napWake'
-  | 'heatOff' // seat + steering-wheel heating off (warmth deepens sleepiness)
-  | 'fanDirection' // air to the face
-  | 'cabinLight' // wake sequence
-  | 'lumbarPulse' // haptic nudge through the lumbar support
-  | 'blind' // nap shade (parked)
-  | 'smartGlass' // nap privacy dimming (parked)
-  | 'showChargers' // navi nearby-charging list (low battery)
+  | 'searchPlace'
+  | 'routeOption'
+  | 'showChargers'
 
 export interface VehicleAction {
   kind: ActionKind
-  value?: number | string | boolean | object
+  value?: unknown
   reason: string
 }
 
-export interface RestStop {
-  id: string
+export interface Bookmark {
   name: string
-  kind: 'drowsy' | 'service' // 졸음쉼터 | 휴게소
-  highway: string
-  direction?: string
-  lngLat: LngLat
-  km: number // distance along the active route
-  amenities?: string[]
-}
-
-export interface RestPlan {
-  stop: RestStop
-  etaMin: number
-  kssAtArrival: number
-  reason: string
-  alternatives: { stop: RestStop; etaMin: number; kssAtArrival: number }[]
-}
-
-export interface TimelineEvent {
-  t: number
-  level: RiskLevel
-  title: string
-  detail: string
-  actions: VehicleAction[]
+  category: 'HOME' | 'OFFICE' | 'EV_CHARGING_STATION' | 'DEFAULT' | string
+  lat: number
+  lng: number
 }

@@ -1,93 +1,63 @@
 import { create } from 'zustand'
 import { Runtime, type Snapshot } from '../engine/runtime'
-import { SCENARIOS, SimVehicle, scenarioStart, type ScenarioConfig } from '../engine/sim'
-import { ROUTE } from '../engine/route'
-import { ALL_STOPS, REST_STOPS } from '../data/stops'
+import { SIM_DELIVERED, SimVehicle, simHistory } from '../engine/sim'
+import { manwon, won } from '../engine/valuation'
 import { voice } from '../voice/voice'
 import { NativeVehicle, isNative, setGleoHandler } from '../engine/native'
 
-interface SimStore {
+interface Store {
   runtime: Runtime | null
+  sim: SimVehicle | null
   snap: Snapshot | null
-  scenario: ScenarioConfig
   playing: boolean
+  /** Simulated seconds per real second. */
   timeScale: number
-  autoPilot: boolean
-  /** In-car UI theme outside the APK (in the APK the vehicle's day/night mode wins). auto = sim clock. */
-  carTheme: 'auto' | 'day' | 'night'
-  setCarTheme: (t: 'auto' | 'day' | 'night') => void
-  load: (id: string) => void
+  /** In-car UI theme outside the APK (in the APK the vehicle's day/night mode wins). */
+  carTheme: 'auto' | 'light' | 'dark'
+  setCarTheme: (t: 'auto' | 'light' | 'dark') => void
+  boot: () => void
+  restart: () => void
   setPlaying: (p: boolean) => void
   setTimeScale: (s: number) => void
-  setAutoPilot: (a: boolean) => void
+  /** APK: load the demo history (passport since delivery) so judges see a lived-in car. */
+  loadDemoHistory: () => void
 }
 
 let raf = 0
 let last = 0
-let nativeAcc = 0
 
-export const useSim = create<SimStore>((set, get) => ({
+export const useStore = create<Store>((set, get) => ({
   runtime: null,
+  sim: null,
   snap: null,
-  scenario: SCENARIOS[0],
   playing: false,
   timeScale: 60,
-  autoPilot: true,
-  load: (id) => {
-    const sc = SCENARIOS.find((s) => s.id === id) ?? SCENARIOS[0]
+  carTheme: 'auto',
+  setCarTheme: (carTheme) => set({ carTheme }),
+  boot: () => {
+    if (get().runtime) return
+    get().restart()
+  },
+  restart: () => {
     cancelAnimationFrame(raf)
     let rt: Runtime
+    let sim: SimVehicle | null = null
     if (isNative()) {
-      const bus = new NativeVehicle()
-      rt = new Runtime(bus, { name: '운전자', wakeTime: Date.now() - 9 * 3.6e6, sleepHours: 6.5, chronotype: 0 }, REST_STOPS)
-      rt.freeRoamStops = ALL_STOPS
+      rt = new Runtime(new NativeVehicle(), { persistKey: 'jegap.v1' })
     } else {
-      const { start, wake } = scenarioStart(sc)
-      const sim = new SimVehicle(sc, start, ROUTE)
-      rt = new Runtime(sim, { name: '운전자', wakeTime: wake, sleepHours: sc.sleepHours, chronotype: 0 }, REST_STOPS)
-      rt.fleetMode = Boolean(sc.fleet)
+      sim = new SimVehicle()
+      rt = new Runtime(sim, { deliveredAt: SIM_DELIVERED })
+      const s = sim.read()
+      const soh = (100 * s.batteryCapWh!) / s.batteryDesignWh!
+      rt.seed(simHistory(s.t, s.odometerKm!, soh))
     }
-    // In the car the real driver answers proposals and starts naps; auto-pilot is a simulation aid only.
-    rt.autoPilot = isNative() ? false : get().autoPilot
-    rt.hooks = {
-      speak: (key) => voice.say(key),
-      engage: () => voice.engage(rt),
-      probe: () => voice.probe(rt),
-    }
-    setGleoHandler((json) => {
-      let fn = ''
-      try {
-        const p = JSON.parse(json)
-        fn = String(p.functionName ?? p.function ?? p.name ?? "")
-      } catch {
-        /* keep empty */
-      }
-      const s = rt.snapshot()
-      if (fn.includes('STATUS')) {
-        const l = ['맑음', '주의', '졸음 신호', '휴식 필요', '위험'][s.est.level]
-        return { status: 'success', message: `졸음지수 ${s.est.kss.toFixed(1)}, ${l} 상태예요.${s.plan ? ` 추천 휴식지는 ${s.plan.stop.name}, ${Math.round(s.plan.etaMin)}분 거리예요.` : ''}` }
-      }
-      if (fn.includes('CANCEL')) {
-        if (!s.waypoint) return { status: 'fail', message: '추가된 휴식 경유지가 없어요.' }
-        rt.cancelWaypoint()
-        return { status: 'success', message: '휴식 경유지를 취소했어요.' }
-      }
-      if (fn.includes('REST')) {
-        const stop = s.plan?.stop
-        if (!stop) return { status: 'fail', message: '경로 위에 쉼터가 없어요.' }
-        void rt.commitWaypoint(stop)
-        return { status: 'success', message: `${stop.name}를 경유지로 추가했어요.` }
-      }
-      if (fn.includes('NAP')) {
-        if (s.sig.speedKph > 1) return { status: 'fail', message: '정차 후 P단에서 시작할 수 있어요.' }
-        rt.startNap(20)
-        return { status: 'success', message: '20분 파워냅을 시작할게요.' }
-      }
-      return { status: 'fail', message: '지원하지 않는 요청이에요.' }
-    })
+    rt.hooks = { speak: (text) => void voice.say(text) }
+    setGleoHandler((json) => gleo(rt, json))
     rt.subscribe((snap) => set({ snap }))
-    set({ runtime: rt, scenario: sc })
+    rt.tick(0)
+    set({ runtime: rt, sim, snap: rt.snapshot() })
     last = performance.now()
+    let nativeAcc = 0
     const loop = (now: number) => {
       const dt = Math.min(250, now - last)
       last = now
@@ -95,24 +65,68 @@ export const useSim = create<SimStore>((set, get) => ({
       if (isNative()) {
         nativeAcc += dt
         if (nativeAcc >= 1000) {
-          rt.frame(nativeAcc, 1)
+          rt.tick(nativeAcc)
           nativeAcc = 0
         }
-      } else if (playing) rt.frame(dt, timeScale)
+      } else if (playing) {
+        // sub-step so 1 s rule cadence holds at high time scales
+        let left = dt * timeScale
+        while (left > 0) {
+          const step = Math.min(1000, left)
+          rt.tick(step)
+          left -= step
+        }
+      }
       raf = requestAnimationFrame(loop)
     }
     raf = requestAnimationFrame(loop)
   },
   setPlaying: (playing) => set({ playing }),
   setTimeScale: (timeScale) => set({ timeScale }),
-  carTheme: 'auto',
-  setCarTheme: (carTheme) => set({ carTheme }),
-  setAutoPilot: (autoPilot) => {
+  loadDemoHistory: () => {
     const rt = get().runtime
-    if (rt) rt.autoPilot = autoPilot
-    set({ autoPilot })
+    if (!rt) return
+    const s = rt.bus.read()
+    const soh = s.batteryCapWh && s.batteryDesignWh ? (100 * s.batteryCapWh) / s.batteryDesignWh : 98
+    rt.seed(simHistory(s.t, Math.max(s.odometerKm ?? 0, 1), soh))
   },
 }))
 
-// Read-only handle for on-device inspection (tools/emu/wv.cjs over WebView devtools in debug builds).
-;(globalThis as { __cvStore?: typeof useSim }).__cvStore = useSim
+// Debug / automation handle (WebView devtools, console scripts).
+;(globalThis as unknown as { __cvStore: typeof useStore }).__cvStore = useStore
+
+/** Gleo Interface handler: answers synchronously from the latest snapshot. */
+function gleo(rt: Runtime, json: string) {
+  let fn = ''
+  let params: Record<string, unknown> = {}
+  try {
+    const p = JSON.parse(json)
+    fn = String(p.functionName ?? p.function ?? p.name ?? '')
+    params = p.params ?? p.parameters ?? {}
+  } catch {
+    /* keep empty */
+  }
+  const s = rt.snapshot()
+  if (!s) return { status: 'fail', message: '아직 차량 정보를 읽는 중이에요.' }
+  switch (fn) {
+    case 'GET_CAR_VALUE':
+      return { status: 'success', message: `지금 예상 시세는 ${manwon(s.value.value)}이에요. 이번 달에 ${won(s.protectedMonth)}을 지켰어요.` }
+    case 'GET_BATTERY_HEALTH':
+      return {
+        status: 'success',
+        message: `배터리 건강도는 ${s.battery.soh.toFixed(1)}%로, 같은 연식 평균보다 ${(s.battery.soh - s.battery.expected).toFixed(1)}%p ${s.battery.soh >= s.battery.expected ? '높아요' : '낮아요'}.`,
+      }
+    case 'SET_CHARGE_LIMIT': {
+      const pct = Math.round(Math.min(100, Math.max(50, Number(params.percent ?? 80))))
+      void rt.setChargeLimit(pct)
+      return { status: 'success', message: `충전 상한을 ${pct}%로 맞출게요.` }
+    }
+    case 'FIND_SERVICE_CENTER':
+      void rt.findService()
+      return { status: 'success', message: '가까운 블루핸즈를 내비에서 찾아볼게요.' }
+    case 'GET_TRADE_IN_QUOTE':
+      if (!s.tradeIn) return { status: 'fail', message: '보상판매 견적은 정차 중에 보여드릴게요.' }
+      return { status: 'success', message: `차량 여권 기준 예상 매입가는 ${manwon(s.tradeIn.price)}이에요.` }
+  }
+  return { status: 'fail', message: '지원하지 않는 요청이에요.' }
+}

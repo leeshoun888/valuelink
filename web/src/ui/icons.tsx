@@ -145,17 +145,11 @@ export const IcSpark = ({ size, ...p }: P) => (
 )
 
 /** KKAEUM brand mark: a sunrise over the horizon inside an eye · "waking" before drowsiness. */
+/** 제값 mark: a shield whose inner line rises like a value curve. Monochrome: follows the text colour. */
 export const Logo = ({ size = 28 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
-    <defs>
-      <linearGradient id="kg" x1="0" y1="0" x2="32" y2="32">
-        <stop offset="0" stopColor="#3CF2C8" />
-        <stop offset="1" stopColor="#5AB8FF" />
-      </linearGradient>
-    </defs>
-    <path d="M3 18c3.2-5.6 8-8.4 13-8.4S25.8 12.4 29 18" stroke="url(#kg)" strokeWidth="2.4" strokeLinecap="round" />
-    <path d="M10 18a6 6 0 0 1 12 0" stroke="url(#kg)" strokeWidth="2.4" strokeLinecap="round" />
-    <path d="M5 22.5h22" stroke="url(#kg)" strokeWidth="2.4" strokeLinecap="round" opacity=".55" />
-    <path d="M16 5v2.4M8.5 7.6l1.3 1.6M23.5 7.6l-1.3 1.6" stroke="url(#kg)" strokeWidth="2" strokeLinecap="round" />
+  <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden style={{ color: 'inherit' }}>
+    <path d="M32 4 L54 12 V30 C54 44 44 54 32 60 C20 54 10 44 10 30 V12 Z" fill="currentColor" />
+    <path d="M20 38 L28 30 L34 35 L45 23" fill="none" stroke="var(--logo-ink, #fff)" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round" />
+    <circle cx="45" cy="23" r="3.2" fill="var(--logo-ink, #fff)" />
   </svg>
 )

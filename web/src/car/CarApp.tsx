@@ -1,28 +1,20 @@
-// The in-vehicle app (what runs in the Pleos Connect window). Glanceable, voice-first,
-// motion-restrained while driving (Pleos "Easy & Safe" / driver-distraction guideline).
+// The in-vehicle app (what runs in the Pleos Connect window). Apple-like restraint: one big number, a
+// living object, short sentences. While driving it collapses to a glanceable, motion-free card
+// (Pleos driver-distraction guideline); the 3D car rotates only while parked.
 
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
-import { useSim } from '../state/store'
-import { useVoice, voice } from '../voice/voice'
-import { AlertRing } from '../ui/AlertRing'
-import { clock, co2Color, co2ColorDay, dur, kssColor, kssColorDay, LEVEL } from '../ui/format'
-import {
-  IcCheck,
-  IcCoffee,
-  IcFan,
-  IcMic,
-  IcMoon,
-  IcPin,
-  IcRecirc,
-  IcSeat,
-  IcSpeaker,
-  IcSun,
-  IcTemp,
-  IcWind,
-  Logo,
-} from '../ui/icons'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { useStore } from '../state/store'
+import { useVoice } from '../voice/voice'
 import type { Snapshot } from '../engine/runtime'
+import { manwon, won } from '../engine/valuation'
+import type { LedgerEntry } from '../engine/guard'
+import { ago, clock } from '../ui/format'
+import { Logo } from '../ui/icons'
+import { isNative } from '../engine/native'
+import type { CarState } from '../three/StudioCar'
 import './car.css'
+
+const StudioCar = lazy(() => import('../three/StudioCar'))
 
 const LAND = { w: 1700, h: 1212 }
 const PORT = { w: 840, h: 1184 }
@@ -41,374 +33,374 @@ export function CarFrame({ portrait }: { portrait?: boolean }) {
   const d = auto ? PORT : LAND
   const s = box.w ? Math.min(box.w / d.w, box.h / d.h) : 0
   return (
-    <div ref={ref} className="car-frame">
-      <div
-        className={`car ${auto ? 'portrait' : 'landscape'}`}
-        style={{ width: d.w, height: d.h, transform: `translate(-50%,-50%) scale(${s})` }}
-      >
-        <CarApp />
+    <div ref={ref} className="jg-frame">
+      <div className={`jg-scale ${auto ? 'portrait' : 'landscape'}`} style={{ width: d.w, height: d.h, transform: `translate(-50%,-50%) scale(${s})` }}>
+        <CarApp portrait={auto} />
       </div>
     </div>
   )
 }
 
-/** Day / night: the vehicle's UI mode when running in the APK, otherwise the console setting (auto = sim clock). */
-export function useTheme(snap: Snapshot | null): 'day' | 'night' {
-  const pref = useSim((s) => s.carTheme)
-  if (!snap) return 'night'
-  if (snap.sig.uiNight !== undefined) return snap.sig.uiNight ? 'night' : 'day'
+/** Light / dark: the vehicle's UI mode in the APK; otherwise the console setting (auto = sim clock). */
+export function useTheme(snap: Snapshot | null): 'light' | 'dark' {
+  const pref = useStore((s) => s.carTheme)
+  if (!snap) return 'light'
+  if (snap.sig.uiNight !== undefined) return snap.sig.uiNight ? 'dark' : 'light'
   if (pref !== 'auto') return pref
   const h = new Date(snap.sig.t).getHours()
-  return h >= 7 && h < 19 ? 'day' : 'night'
+  return h >= 7 && h < 19 ? 'light' : 'dark'
 }
 
-const DayCtx = createContext(false)
-/** Theme-aware level / CO₂ colours for inline styles. */
-function usePalette() {
-  const day = useContext(DayCtx)
-  return { day, kss: day ? kssColorDay : kssColor, co2: day ? co2ColorDay : co2Color }
+export function carStateOf(s: Snapshot, xray = false): CarState {
+  return {
+    windowsOpen: s.sig.windowsOpen ?? 0,
+    headlights: Boolean(s.sig.headlightsOn),
+    charging: s.mode === 'charging' && s.sig.chargeState === 'charging',
+    socPct: s.sig.socPct ?? 70,
+    chargeLimitPct: s.sig.chargeLimitPct ?? 100,
+    blindClosed: Boolean(s.sig.blindClosed),
+    sohPct: s.battery.soh,
+    xray: xray || s.mode === 'charging',
+    tyreWarning: s.warnings.some((w) => w.type === 'TPMS'),
+  }
 }
 
-export function CarApp() {
-  const snap = useSim((s) => s.snap)
-  const rt = useSim((s) => s.runtime)
+export function CarApp({ portrait }: { portrait?: boolean }) {
+  const snap = useStore((s) => s.snap)
   const theme = useTheme(snap)
-  if (!snap || !rt) return <div className="car-boot"><Logo size={96} /></div>
-  const driving = snap.sig.speedKph > 3
-  // Sleep screens stay dark whatever the theme.
-  const day = theme === 'day' && snap.mode !== 'napping' && snap.mode !== 'waking'
+  if (!snap) {
+    return (
+      <div className="jg-app jg-boot" data-theme={theme}>
+        <Logo size={120} />
+      </div>
+    )
+  }
   return (
-    <DayCtx.Provider value={day}>
-    <div className={`car-app lv${snap.est.level} ${driving ? 'driving' : 'stopped'}`} data-theme={day ? 'day' : 'night'}>
-      <div className="car-ambient" style={{ background: `radial-gradient(60% 50% at 20% 0%, ${snap.sig.ambient?.color ?? '#3CF2C8'}22, transparent 70%)` }} />
+    <div className={`jg-app mode-${snap.mode} ${portrait ? 'is-portrait' : ''}`} data-theme={theme}>
+      <Scene snap={snap} theme={theme} portrait={portrait} />
       <Header snap={snap} />
-      {snap.mode === 'napping' || snap.mode === 'waking' ? (
-        <NapView snap={snap} />
-      ) : snap.mode === 'parked' ? (
-        <ParkedView snap={snap} />
-      ) : (
-        <DriveView snap={snap} />
-      )}
-      <VoiceBar />
-      <QuizOverlay />
-      <ProbeOverlay />
+      {snap.mode === 'driving' ? <DriveView snap={snap} theme={theme} /> : <HomeView snap={snap} theme={theme} portrait={portrait} />}
+      {snap.suggestion && <SuggestionBar snap={snap} />}
+      <Caption />
     </div>
-    </DayCtx.Provider>
   )
 }
 
 function Header({ snap }: { snap: Snapshot }) {
   const enabled = useVoice((s) => s.enabled)
+  const [menu, setMenu] = useState(false)
+  const live = snap.caps.source === 'pleos'
+  const status = snap.mode === 'driving' ? '주행 중' : snap.mode === 'charging' ? (snap.sig.chargeState === 'charging' ? '충전 중' : '충전 대기') : '주차 중'
   return (
-    <header className="car-head">
-      <div className="brand">
-        <Logo size={44} />
-        <span>깨움</span>
-        <em className={snap.caps.source === 'pleos' ? 'live' : ''}>
-          <i className="dot" />
-          {snap.caps.source === 'pleos' ? 'Pleos 차량 연결' : '시뮬레이션'} · {snap.mode === 'driving' ? '주행 모니터링' : snap.mode === 'napping' ? '휴식 중' : '정차'}
+    <header className="jg-head">
+      <div className="jg-brand">
+        <Logo size={46} />
+        <span>제값</span>
+        <em className={live ? 'live' : ''}>
+          <i />
+          {live ? 'Pleos 차량 연결' : '시뮬레이션'} · {status}
         </em>
       </div>
-      <div className="head-right">
-        <button className={`voice-toggle ${enabled ? 'on' : ''}`} onClick={() => useVoice.getState().setEnabled(!enabled)}>
-          <IcSpeaker size={30} />
+      <div className="jg-head-r">
+        <button className={`jg-toggle ${enabled ? 'on' : ''}`} onClick={() => useVoice.getState().setEnabled(!enabled)}>
           {enabled ? '음성 켜짐' : '음성 꺼짐'}
         </button>
-        <span className="clock">{clock(snap.sig.t)}</span>
+        <span className="jg-clock num">{clock(snap.sig.t)}</span>
+        {isNative() && (
+          <button className="jg-more" onClick={() => setMenu(!menu)} aria-label="더보기">
+            ···
+          </button>
+        )}
+        {menu && (
+          <div className="jg-menu" onClick={() => setMenu(false)}>
+            <button onClick={() => useStore.getState().loadDemoHistory()}>시연용 이력 불러오기</button>
+            <button onClick={() => useStore.getState().setCarTheme(useStore.getState().carTheme === 'dark' ? 'light' : 'dark')}>화면 테마 전환</button>
+          </div>
+        )}
       </div>
     </header>
   )
 }
 
-function DriveView({ snap }: { snap: Snapshot }) {
-  const { est, plan, proposal, waypoint } = snap
-  const info = LEVEL[est.level]
-  const pal = usePalette()
+/**
+ * The car is the page: a full-bleed studio scene behind everything. It turns slowly while parked and
+ * freezes into a still frame while driving (no motion in the driver's field of view).
+ */
+function Scene({ snap, theme, portrait }: { snap: Snapshot; theme: 'light' | 'dark'; portrait?: boolean }) {
+  const car = useMemo(() => carStateOf(snap), [snap])
+  const driving = snap.mode === 'driving'
   return (
-    <main className="drive">
-      <section className="ring-col">
-        <AlertRing kss={est.kss} level={est.level} size={600} confidence={est.confidence} calm day={pal.day} />
-        <p className="ring-desc" style={{ color: info.color }}>{info.desc}</p>
-        <div className="forecast">
-          <span>졸음 위험(KSS 7) 도달 예측</span>
-          <b style={{ color: est.minutesToDanger !== null && est.minutesToDanger < 40 ? 'var(--l3)' : 'var(--ink-strong)' }}>
-            {est.minutesToDanger === null ? '4시간 이상' : est.minutesToDanger === 0 ? '도달' : dur(est.minutesToDanger) + ' 후'}
-          </b>
-        </div>
-      </section>
-      <section className="side-col">
-        <RestCard snap={snap} plan={plan} proposal={proposal} waypoint={waypoint} />
-        <AirCard snap={snap} />
-        <ActionStrip snap={snap} />
-      </section>
-    </main>
-  )
-}
-
-function RestCard({ snap, plan, proposal, waypoint }: Pick<Snapshot, 'plan' | 'proposal' | 'waypoint'> & { snap: Snapshot }) {
-  const rt = useSim((s) => s.runtime)!
-  const pal = usePalette()
-  const km = snap.sig.routeProgressKm ?? 0
-  const navTrip = (id: string) => (snap.trip && snap.trip.poiId === id ? snap.trip : null)
-  const charging = (snap.sig.socPct ?? 100) < 30
-  if (waypoint) {
-    const trip = navTrip(waypoint.id)
-    const left = Math.max(0, waypoint.km - km)
-    const arrived = snap.arrivedAt === waypoint.id
-    return (
-      <div className="card rest set">
-        <div className="card-k">
-          <IcCheck size={28} /> {arrived ? '쉼터 도착 확인 (지오펜스)' : '경유지로 안내 중'}
-          <button className="rest-cancel" onClick={() => rt.cancelWaypoint()}>취소</button>
-        </div>
-        <div className="rest-name">{waypoint.name}</div>
-        <div className="rest-meta">
-          <span><b>{left.toFixed(0)}</b>km</span>
-          <span><b>{Math.round(trip ? trip.etaMin : (left / 95) * 60)}</b>분 후 도착{trip ? ' · 내비 기준' : ''}</span>
-          <span className="tag">{waypoint.kind === 'service' ? '휴게소' : '졸음쉼터'}</span>
-          {trip && snap.sig.socPct !== undefined && <span className="tag">도착 배터리 {trip.socAtDest}%</span>}
-        </div>
-        <p className="rest-why">{charging && waypoint.kind === 'service' ? '배터리가 낮아 충전 겸 휴식으로 골랐어요. ' : ''}도착하면 커피 한 잔과 15분 파워냅을 준비해 드릴게요.</p>
-      </div>
-    )
-  }
-  const target = proposal ? { stop: proposal.stop, etaMin: proposal.etaMin, kssAtArrival: plan?.kssAtArrival } : plan
-  if (!target) return <div className="card rest"><div className="card-k">다음 휴식</div><div className="rest-name dim">경로 위 쉼터 없음</div></div>
-  return (
-    <div className={`card rest ${proposal ? 'ask' : ''}`}>
-      <div className="card-k">
-        {target.stop.kind === 'service' ? <IcCoffee size={28} /> : <IcPin size={28} />}
-        {proposal ? '깨움이 휴식을 제안해요' : '예측 기반 추천 휴식지'}
-      </div>
-      <div className="rest-name">{target.stop.name}</div>
-      <div className="rest-meta">
-        <span><b>{Math.max(0, target.stop.km - km).toFixed(0)}</b>km</span>
-        <span><b>{Math.round(navTrip(target.stop.id)?.etaMin ?? target.etaMin)}</b>분{navTrip(target.stop.id) ? ' · 내비 기준' : ''}</span>
-        {charging && target.stop.kind === 'service' && <span className="tag">⚡ 충전 겸 휴식</span>}
-        {target.kssAtArrival !== undefined && (
-          <span>도착 시 <b style={{ color: pal.kss(target.kssAtArrival) }}>{target.kssAtArrival.toFixed(1)}</b></span>
-        )}
-      </div>
-      {proposal ? (
-        <div className="rest-actions">
-          <button className="big primary" onClick={() => rt.acceptProposal()}>경유지 추가</button>
-          <button className="big" onClick={() => rt.declineProposal()}>나중에</button>
-        </div>
-      ) : (
-        <p className="rest-why">{plan?.reason}</p>
-      )}
+    <div className="jg-scene">
+      <Suspense fallback={null}>
+        <StudioCar
+          state={car}
+          theme={theme}
+          still={driving}
+          autoRotate={!driving}
+          interactive={!driving}
+          azimuth={driving ? 14 : 0}
+          distance={portrait ? 17 : 15.5}
+          shiftX={portrait ? 0 : driving ? 0.16 : -0.13}
+          shiftY={portrait ? 0.02 : 0.13}
+          style={{ width: '100%', height: '100%' }}
+        />
+      </Suspense>
     </div>
   )
 }
 
-function AirCard({ snap }: { snap: Snapshot }) {
-  const { co2, sig } = snap
-  const pal = usePalette()
-  const pct = Math.min(1, co2 / 5000)
+// ---- parked / charging -------------------------------------------------------------------------------
+
+function HomeView({ snap, theme, portrait }: { snap: Snapshot; theme: 'light' | 'dark'; portrait?: boolean }) {
+  const [sheet, setSheet] = useState<'trade' | 'value' | null>(null)
+  void theme
+  void portrait
   return (
-    <div className="card air">
-      <div className="air-top">
-        <div>
-          <div className="card-k">실내 CO₂ <small>디지털 트윈 추정</small></div>
-          <div className="co2" style={{ color: pal.co2(co2) }}>
-            {Math.round(co2).toLocaleString()}<small>ppm</small>
+    <main className="jg-home">
+      <section className="jg-hero">
+        <div className="jg-hero-copy">
+          <p className="jg-label">내 차의 지금 가치</p>
+          <button className="jg-value num" onClick={() => setSheet('value')}>
+            {manwon(snap.value.value)}
+          </button>
+          <p className="jg-kept">
+            이번 달 지킨 가치 <b className="num">+{won(snap.protectedMonth)}</b>
+          </p>
+          <p className="jg-model">
+            {snap.sig.modelYear} {snap.model.name} · <span className="num">{Math.round(snap.sig.odometerKm ?? 0).toLocaleString()}km</span> · 출고 {snap.ageYears.toFixed(1)}년
+          </p>
+          <div className="jg-factors">
+            {snap.value.factors
+              .filter((f) => f.key !== 'age' && Math.abs(f.effect) > 0.0005)
+              .map((f) => (
+                <span key={f.key} className={f.effect >= 0 ? 'up' : 'down'}>
+                  {f.label} <b className="num">{f.effect >= 0 ? '+' : ''}{(f.effect * 100).toFixed(1)}%</b>
+                </span>
+              ))}
           </div>
         </div>
-        <div className={`mode ${sig.recirculation ? 'rec' : 'fresh'}`}>
-          {sig.recirculation ? <IcRecirc size={34} /> : <IcWind size={34} />}
-          {sig.recirculation ? '내기순환' : '외기유입'}
-        </div>
-      </div>
-      <div className="co2-bar">
-        <i style={{ width: `${pct * 100}%`, background: pal.co2(co2) }} />
-        <span style={{ left: '20%' }}>1,000</span>
-        <span style={{ left: '40%' }}>2,000</span>
-        <span style={{ left: '70%' }}>3,500</span>
-      </div>
-      <div className="air-stats">
-        <span><IcTemp size={28} />{sig.setTempC.toFixed(1)}℃</span>
-        <span><IcFan size={28} />{sig.fanSpeed}단</span>
-        <span><IcSeat size={28} />통풍 {sig.seatVentDriver ?? 0}</span>
-        <span><IcSun size={28} /><i className="amb" style={{ background: sig.ambient?.color }} /></span>
-      </div>
-    </div>
-  )
-}
+      </section>
 
-function ActionStrip({ snap }: { snap: Snapshot }) {
-  const items = snap.timeline.filter((e) => e.actions.length).slice(-3).reverse()
-  return (
-    <div className="card actions">
-      <div className="card-k">깨움이 한 일</div>
-      {items.length === 0 && <div className="act dim">아직 개입이 필요하지 않았어요</div>}
-      {items.map((e, i) => (
-        <div className="act" key={e.t + e.title + i}>
-          <i style={{ background: LEVEL[e.level].hex }} />
-          <span className="act-t">{clock(e.t)}</span>
-          <span className="act-title">{e.title}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
+      <section className="jg-side">
+        <BatteryCard snap={snap} />
+        <GuardCard snap={snap} portrait={portrait} />
+      </section>
 
-/** From navi's recent destinations: how long the next trip probably is and how many rests it needs. */
-function TripPlanHint({ snap }: { snap: Snapshot }) {
-  const pos = snap.sig.position
-  const dest = snap.recent[0]
-  if (!pos || !dest) return null
-  const R = 6371
-  const toR = Math.PI / 180
-  const dLat = (dest.lat - pos[1]) * toR
-  const dLon = (dest.lon - pos[0]) * toR
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(pos[1] * toR) * Math.cos(dest.lat * toR) * Math.sin(dLon / 2) ** 2
-  const km = 2 * R * Math.asin(Math.sqrt(h)) * 1.3
-  if (km < 30) return null
-  const rests = Math.max(0, Math.ceil((km / 95) * 60 / 110) - 1)
-  return (
-    <p className="trip-hint">
-      최근 목적지 <b>{dest.name}</b>까지 약 {Math.round(km)}km · 졸음 예측상 휴식 <b>{rests}회</b> 계획을 세워 둘게요.
-    </p>
-  )
-}
-
-function ParkedView({ snap }: { snap: Snapshot }) {
-  const rt = useSim((s) => s.runtime)!
-  const pal = usePalette()
-  const [min, setMin] = useState(20)
-  return (
-    <main className="parked">
-      <div className="nap-hero">
-        <IcMoon size={120} />
-        <h1>파워냅 준비 완료</h1>
-        <p>
-          주차가 확인됐어요. 현재 졸음지수 <b style={{ color: pal.kss(snap.est.kss) }}>{snap.est.kss.toFixed(1)}</b>
-          <br />
-          좌석을 젖히고, 공기·온도·조명을 수면에 맞추고, 정확한 시간에 깨워 드려요.
-        </p>
-        <TripPlanHint snap={snap} />
-        <div className="nap-opts">
-          {[10, 15, 20].map((m) => (
-            <button key={m} className={`big ${min === m ? 'primary' : ''}`} onClick={() => setMin(m)}>
-              {m}분
-            </button>
-          ))}
+      <section className="jg-passport glass" onClick={() => setSheet('trade')}>
+        <div>
+          <p className="jg-label">차량 여권</p>
+          <p className="jg-pp">
+            <b className="num">{snap.passport.days.toLocaleString()}일</b> 연속 기록 ·{' '}
+            {snap.passport.chainOk && snap.passport.mileageOk ? <span className="ok">주행거리·이력 무결성 확인</span> : <span className="warn">검증 필요</span>}
+          </p>
         </div>
-        <button className="big primary wide" onClick={() => rt.startNap(min)}>
-          <IcMoon size={36} /> {min}분 파워냅 시작
-        </button>
-        <button className="big ghost wide" onClick={() => voice.manualProbe(rt)}>
-          <IcMic size={34} /> 출발 전 반응속도 확인
-        </button>
-      </div>
+        <span className="pill primary">보상판매 견적 보기</span>
+      </section>
+
+      {sheet && <Sheet snap={snap} kind={sheet} onClose={() => setSheet(null)} />}
     </main>
   )
 }
 
-function NapView({ snap }: { snap: Snapshot }) {
-  const rt = useSim((s) => s.runtime)!
-  const total = rt.orch.napMinutes
-  const left = snap.napRemainingMin ?? 0
-  const frac = snap.mode === 'waking' ? 1 : 1 - left / total
-  const R = 300
-  const C = 2 * Math.PI * R
+function BatteryCard({ snap }: { snap: Snapshot }) {
+  const b = snap.battery
+  const rt = useStore((s) => s.runtime)
+  const limit = snap.sig.chargeLimitPct ?? 100
+  const diff = b.soh - b.expected
+  const charging = snap.sig.chargeState === 'charging'
   return (
-    <main className={`nap ${snap.mode}`}>
-      <svg width={720} height={720} viewBox="0 0 720 720">
-        <circle cx={360} cy={360} r={R} stroke="rgba(255,255,255,0.06)" strokeWidth={14} fill="none" />
-        <circle
-          cx={360}
-          cy={360}
-          r={R}
-          stroke={snap.mode === 'waking' ? '#E8F4FF' : '#FF9A5A'}
-          strokeWidth={14}
-          fill="none"
-          strokeLinecap="round"
-          strokeDasharray={`${C * frac} ${C}`}
-          transform="rotate(-90 360 360)"
-          style={{ transition: 'stroke-dasharray 1s linear, stroke 2s' }}
-        />
-        <text x={360} y={330} textAnchor="middle" fontSize={44} fill="rgba(255,255,255,.55)" fontFamily="var(--pleos)" fontWeight={600}>
-          {snap.mode === 'waking' ? '기상 시퀀스' : '파워냅'}
-        </text>
-        <text x={360} y={430} textAnchor="middle" fontSize={130} fill="#fff" fontFamily="var(--pleos)" fontWeight={800}>
-          {snap.mode === 'waking' ? '☀︎' : `${Math.floor(left)}:${String(Math.floor((left % 1) * 60)).padStart(2, '0')}`}
-        </text>
-      </svg>
-      <div className="nap-side">
-        <NapStep on icon={<IcSeat size={34} />} t="좌석 등받이 젖힘" />
-        <NapStep on icon={<IcTemp size={34} />} t={`${snap.sig.setTempC.toFixed(1)}℃ · 송풍 ${snap.sig.fanSpeed}단`} />
-        <NapStep on={!snap.sig.recirculation} icon={<IcWind size={34} />} t="외기 유입 · CO₂ 축적 방지" />
-        <NapStep on icon={<IcSun size={34} />} t={snap.mode === 'waking' ? '주광색 조명으로 각성' : '저조도 웜톤 조명'} />
-        {snap.mode === 'napping' && (
-          <button className="big wide" onClick={() => rt.wakeNow()}>
-            지금 깨우기
+    <div className="glass jg-batt">
+      <div className="jg-batt-top">
+        <Ring value={b.soh} />
+        <div>
+          <p className="jg-label">
+            배터리 건강도 <span className="tag">{b.sohSource === 'car' ? '차량 실측' : '추정'}</span>
+          </p>
+          <p className="jg-batt-big num">{b.soh.toFixed(1)}%</p>
+          <p className="jg-sub">
+            같은 연식 평균 <span className="num">{b.expected.toFixed(1)}%</span>보다{' '}
+            <b className={diff >= 0 ? 'up' : 'down'}>
+              {diff >= 0 ? '+' : ''}
+              {diff.toFixed(1)}%p
+            </b>
+          </p>
+        </div>
+      </div>
+      <div className="jg-soc">
+        <div className="jg-soc-bar">
+          <i style={{ width: `${snap.sig.socPct ?? 0}%` }} className={charging ? 'charging' : ''} />
+          <em style={{ left: `${limit}%` }} />
+        </div>
+        <div className="jg-soc-row">
+          <span className="num">
+            {Math.round(snap.sig.socPct ?? 0)}% · {Math.round(snap.sig.rangeKm ?? 0)}km
+            {charging && snap.sig.chargeKw ? ` · ${snap.sig.chargeKw.toFixed(1)}kW` : ''}
+          </span>
+          <div className="jg-seg" role="group" aria-label="충전 상한">
+            {[80, 90, 100].map((p) => (
+              <button key={p} className={Math.round(limit) === p ? 'on' : ''} onClick={() => void rt?.setChargeLimit(p)}>
+                {p}%
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <p className="jg-fine">
+        내 습관 기준 연간 열화 <b className="num">{b.fadeMine.toFixed(1)}%p</b> · 평균 운전자 <span className="num">{b.fadeAverage.toFixed(1)}%p</span>
+      </p>
+    </div>
+  )
+}
+
+function Ring({ value }: { value: number }) {
+  const r = 54
+  const c = 2 * Math.PI * r
+  const f = Math.max(0, Math.min(1, (value - 80) / 20))
+  return (
+    <svg className="jg-ring" width={136} height={136} viewBox="0 0 136 136">
+      <circle cx="68" cy="68" r={r} className="track" />
+      <circle cx="68" cy="68" r={r} className="val" strokeDasharray={`${c * f} ${c}`} transform="rotate(-90 68 68)" />
+    </svg>
+  )
+}
+
+function GuardCard({ snap, portrait }: { snap: Snapshot; portrait?: boolean }) {
+  const items = snap.ledger.slice(0, portrait ? 2 : 3)
+  return (
+    <div className="glass jg-guard">
+      <div className="jg-guard-head">
+        <p className="jg-label">제값이 지킨 일</p>
+        <span className="num">누적 +{won(snap.protectedTotal)}</span>
+      </div>
+      {items.length === 0 && <p className="jg-sub">아직 기록이 없어요. 주행과 충전을 하면 차가 알아서 지켜요.</p>}
+      <ul>
+        {items.map((e) => (
+          <GuardRow key={e.id} e={e} now={snap.sig.t} />
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function GuardRow({ e, now }: { e: LedgerEntry; now: number }) {
+  return (
+    <li className={e.auto ? 'auto' : ''}>
+      <div>
+        <b>{e.title}</b>
+        <span>
+          {ago(e.t, now)} · {e.auto ? '차가 직접 실행' : '안내'}
+        </span>
+      </div>
+      {e.won > 0 && <em className="num">+{won(e.won)}</em>}
+    </li>
+  )
+}
+
+function Sheet({ snap, kind, onClose }: { snap: Snapshot; kind: 'trade' | 'value'; onClose: () => void }) {
+  return (
+    <div className="jg-sheet-bg" onClick={onClose}>
+      <div className="jg-sheet glass solid" onClick={(e) => e.stopPropagation()}>
+        {kind === 'trade' && snap.tradeIn ? (
+          <>
+            <p className="jg-label">현대 인증중고차 보상판매 예상 매입가</p>
+            <p className="jg-value num">{manwon(snap.tradeIn.price)}</p>
+            <p className="jg-sub">
+              차량 여권 검증 우대 <b className="up">+{(snap.tradeIn.premium * 100).toFixed(0)}%</b> 포함 · {snap.tradeIn.validDays}일간 유효 (제휴 시나리오)
+            </p>
+            <ul className="jg-sheet-list">
+              <li>
+                주행거리 무결성 <b>{snap.passport.mileageOk ? '확인' : '확인 필요'}</b>
+              </li>
+              <li>
+                에어백 전개 이력 <b>{snap.sig.airbagDeployed ? '있음' : snap.sig.airbagDeployed === false ? '없음' : '실차에서 확인'}</b>
+              </li>
+              <li>
+                배터리 건강도 <b className="num">{snap.battery.soh.toFixed(1)}% (차량 실측)</b>
+              </li>
+              <li>
+                미해결 경고등 <b>{snap.warnings.length ? `${snap.warnings.length}개` : '없음'}</b>
+              </li>
+            </ul>
+          </>
+        ) : (
+          <>
+            <p className="jg-label">가치는 이렇게 계산돼요</p>
+            <ul className="jg-sheet-list">
+              <li>
+                신차 기준가 <b className="num">{manwon(snap.value.base)}</b>
+              </li>
+              {snap.value.factors.map((f) => (
+                <li key={f.key}>
+                  {f.label}
+                  <small>{f.note}</small>
+                  <b className={`num ${f.won >= 0 ? 'up' : 'down'}`}>
+                    {f.won >= 0 ? '+' : ''}
+                    {manwon(f.won)}
+                  </b>
+                </li>
+              ))}
+            </ul>
+            <p className="jg-fine">기준가·감가 계수는 제값의 가정값이에요. 현대 인증중고차 거래 데이터와 연결되면 실거래 기반으로 바뀌어요.</p>
+          </>
+        )}
+        <button className="pill secondary" onClick={onClose}>
+          닫기
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ---- driving -------------------------------------------------------------------------------------------
+
+function DriveView({ snap }: { snap: Snapshot; theme: 'light' | 'dark' }) {
+  const h = snap.habits
+  const today = snap.ledger.filter((e) => new Date(e.t).toDateString() === new Date(snap.sig.t).toDateString()).reduce((a, e) => a + e.won, 0)
+  return (
+    <main className="jg-drive">
+      <section className="jg-score">
+        <p className="jg-label">차 아끼는 운전</p>
+        <p className="jg-score-big num">{h.score}</p>
+        <p className="jg-sub">
+          100km당 급가속 <b className="num">{h.harshAccelPer100.toFixed(1)}</b> · 급제동 <b className="num">{h.harshBrakePer100.toFixed(1)}</b>
+        </p>
+      </section>
+      <section className="glass jg-today">
+        <p className="jg-label">오늘 지킨 가치</p>
+        <p className="jg-today-big num">+{won(today)}</p>
+        <p className="jg-sub">
+          {snap.sig.routeRemainingKm !== undefined ? `목적지까지 ${Math.round(snap.sig.routeRemainingKm)}km · ` : ''}배터리 {Math.round(snap.sig.socPct ?? 0)}%
+        </p>
+      </section>
+    </main>
+  )
+}
+
+function SuggestionBar({ snap }: { snap: Snapshot }) {
+  const rt = useStore((s) => s.runtime)
+  const s = snap.suggestion!
+  return (
+    <div className="jg-suggest glass">
+      <div>
+        <b>{s.title}</b>
+        <span>{s.detail}</span>
+      </div>
+      <div className="jg-suggest-act">
+        <button className="pill secondary" onClick={() => rt?.dismiss()}>
+          나중에
+        </button>
+        {s.cta && (
+          <button className="pill primary" onClick={() => void rt?.accept()}>
+            {s.cta.label}
           </button>
         )}
       </div>
-    </main>
+    </div>
   )
 }
 
-const NapStep = ({ on, icon, t }: { on: boolean; icon: React.ReactNode; t: string }) => (
-  <div className={`nap-step ${on ? 'on' : ''}`}>
-    {icon}
-    <span>{t}</span>
-  </div>
-)
-
-function VoiceBar() {
+function Caption() {
   const caption = useVoice((s) => s.caption)
-  return (
-    <footer className={`voicebar ${caption ? 'show' : ''}`}>
-      <div className="orb" />
-      <span>{caption ?? '“깨움아” 라고 부르거나 스티어링 휠 음성 버튼을 눌러 말해 보세요'}</span>
-    </footer>
-  )
-}
-
-function QuizOverlay() {
-  const quiz = useVoice((s) => s.quiz)
-  const driving = useSim((s) => s.snap?.mode === 'driving')
-  // The quiz is an in-motion engagement tool: never show it over the nap / parked screens.
-  if (!quiz || !driving) return null
-  return (
-    <div className="overlay quiz rise">
-      <div className="ov-k">각성 퀴즈 · {quiz.region}</div>
-      <h2>{quiz.q}</h2>
-      <div className="choices">
-        {quiz.choices.map((c, i) => {
-          const state = quiz.picked === undefined ? '' : i === quiz.answer ? 'right' : i === quiz.picked ? 'wrong' : 'dim'
-          return (
-            <button key={c} className={`choice ${state}`} onClick={() => voice.answer(i)}>
-              <em>{i + 1}</em>
-              {c}
-            </button>
-          )
-        })}
-      </div>
-      <p className="ov-hint">“{quiz.choices[0]}” 또는 “{quiz.choices[1]}” 라고 말씀하세요</p>
-    </div>
-  )
-}
-
-function ProbeOverlay() {
-  const probe = useVoice((s) => s.probe)
-  if (probe.phase === 'idle') return null
-  return (
-    <div className="overlay probe rise">
-      <div className="ov-k">음성 반응속도 측정 · Voice PVT</div>
-      {probe.phase === 'done' ? (
-        <>
-          <h2 className="rt" style={{ color: (probe.rt ?? 0) > 500 ? 'var(--l3)' : 'var(--l0)' }}>{Math.round(probe.rt ?? 0)}ms</h2>
-          <p>{(probe.rt ?? 0) > 500 ? '반응이 늦어졌어요 (500ms 초과 = 주의 지연)' : '반응속도 양호'}</p>
-        </>
-      ) : (
-        <>
-          <div className={`probe-orb ${probe.phase}`} />
-          <h2>{probe.phase === 'listening' ? '지금 “네” 라고 말하세요' : '띵 소리가 나면 “네”'}</h2>
-        </>
-      )}
-    </div>
-  )
+  if (!caption) return null
+  return <div className="jg-caption">{caption}</div>
 }

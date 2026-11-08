@@ -1,14 +1,13 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { CarFrame } from './car/CarApp'
-import { useSim } from './state/store'
-import { SCENARIOS } from './engine/sim'
+import { useStore } from './state/store'
 import { isNative } from './engine/native'
 import { Logo } from './ui/icons'
 
-const Landing = lazy(() => import('./pages/Landing').then((m) => ({ default: m.Landing })))
-const Console = lazy(() => import('./console/Console').then((m) => ({ default: m.Console })))
-const Fleet = lazy(() => import('./pages/Fleet').then((m) => ({ default: m.Fleet })))
-const Report = lazy(() => import('./pages/Report').then((m) => ({ default: m.Report })))
+const Landing = lazy(() => import('./pages/Landing'))
+const Console = lazy(() => import('./console/Console'))
+const PassportPage = lazy(() => import('./pages/Passport'))
+const Fleet = lazy(() => import('./pages/Fleet'))
 
 function useHashRoute() {
   const get = () => window.location.hash.replace(/^#/, '').split('?')[0] || '/'
@@ -26,13 +25,11 @@ function useHashRoute() {
 
 /** Standalone in-vehicle app (this is the route the APK's WebView opens). */
 function CarRoute() {
-  const load = useSim((s) => s.load)
+  const boot = useStore((s) => s.boot)
   useEffect(() => {
-    if (!useSim.getState().runtime) {
-      load(SCENARIOS[0].id)
-      if (!isNative()) useSim.getState().setPlaying(true)
-    }
-  }, [load])
+    boot()
+    if (!isNative()) useStore.getState().setPlaying(true)
+  }, [boot])
   return (
     <div style={{ position: 'fixed', inset: 0, background: '#000' }}>
       <CarFrame />
@@ -53,7 +50,7 @@ export default function App() {
   if (isNative() || route === '/car') return <CarRoute />
   return (
     <Suspense fallback={<Splash />}>
-      {route === '/console' ? <Console /> : route === '/fleet' ? <Fleet /> : route === '/report' ? <Report /> : <Landing />}
+      {route === '/console' ? <Console /> : route === '/passport' ? <PassportPage /> : route === '/fleet' ? <Fleet /> : <Landing />}
     </Suspense>
   )
 }

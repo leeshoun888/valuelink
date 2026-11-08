@@ -1,0 +1,91 @@
+.report {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 16px 16px 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.report.empty {
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--text-2);
+}
+.rp-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.report h1 {
+  font-size: clamp(30px, 5vw, 48px);
+  margin: 18px 0 0;
+  letter-spacing: -0.03em;
+}
+.rp-sub {
+  color: var(--text-3);
+  margin: 0;
+}
+.rp-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+}
+.kpi {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.kpi span {
+  font-size: 12.5px;
+  color: var(--text-3);
+}
+.kpi b {
+  font-size: 28px;
+  letter-spacing: -0.02em;
+}
+.rp-levels,
+.rp-coach,
+.rp-stops {
+  padding: 16px;
+}
+.lvbar {
+  display: flex;
+  height: 14px;
+  border-radius: 7px;
+  overflow: hidden;
+  margin: 12px 0 10px;
+  background: rgba(255, 255, 255, 0.05);
+}
+.lvleg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.lvleg i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+.coach-md p {
+  margin: 6px 0;
+  line-height: 1.65;
+  color: var(--text-2);
+}
+.coach-md p.h {
+  color: var(--text);
+  font-weight: 750;
+  font-size: 17px;
+  margin-top: 14px;
+}
+.rp-stops ul {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  color: var(--text-2);
+}

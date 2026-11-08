@@ -1,0 +1,47 @@
+.rtb {
+  position: relative;
+}
+.rt-btn {
+  background: linear-gradient(135deg, rgba(155, 140, 255, 0.18), rgba(90, 184, 255, 0.12)) !important;
+  border-color: rgba(155, 140, 255, 0.45) !important;
+}
+.rt-btn.live {
+  color: #fff;
+  box-shadow: 0 0 0 3px rgba(155, 140, 255, 0.25), 0 0 24px rgba(155, 140, 255, 0.45);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+.rt-pop {
+  position: absolute;
+  right: 0;
+  top: 46px;
+  width: min(380px, calc(100vw - 32px));
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 40;
+}
+.rt-msg {
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 8px 12px;
+  border-radius: 12px;
+  max-width: 90%;
+}
+.rt-msg.me {
+  align-self: flex-end;
+  background: rgba(255, 255, 255, 0.08);
+}
+.rt-msg.ai {
+  align-self: flex-start;
+  background: rgba(155, 140, 255, 0.14);
+  border: 1px solid rgba(155, 140, 255, 0.3);
+}
+.rt-hint {
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.rt-err {
+  font-size: 12.5px;
+  color: var(--coral);
+}

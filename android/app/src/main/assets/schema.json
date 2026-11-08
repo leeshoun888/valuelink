@@ -1,0 +1,59 @@
+{
+  "packageName": "com.carvalue.app",
+  "appDescription": "JEGAP keeps the car's resale value: it reads battery health and driving and charging habits, protects the car automatically (charge limit, windows, lights), and keeps a verified vehicle passport for trade-in.",
+  "invokeWord": "제값",
+  "version": "1.0.0",
+  "actionCalls": [
+    {
+      "type": "function",
+      "function": {
+        "name": "GET_CAR_VALUE",
+        "description": "Returns the car's current estimated resale value and how much value the driver's habits protected this month.",
+        "parameters": { "type": "object", "properties": {}, "required": [] },
+        "component": "service"
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "GET_BATTERY_HEALTH",
+        "description": "Returns the EV battery state of health reported by the car and the charging habits that affect it.",
+        "parameters": { "type": "object", "properties": {}, "required": [] },
+        "component": "service"
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "SET_CHARGE_LIMIT",
+        "description": "Sets the EV charging limit to protect the battery, for example 80 percent for daily driving or 100 percent before a long trip.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "percent": { "type": "number", "description": "Charging limit in percent (50 to 100)." }
+          },
+          "required": []
+        },
+        "component": "service"
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "FIND_SERVICE_CENTER",
+        "description": "Opens navigation search for the nearest authorized service center when a warning lamp or maintenance item needs attention.",
+        "parameters": { "type": "object", "properties": {}, "required": [] },
+        "component": "service"
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "GET_TRADE_IN_QUOTE",
+        "description": "Returns a trade-in price estimate based on the verified vehicle passport, only while parked.",
+        "parameters": { "type": "object", "properties": {}, "required": [] },
+        "component": "service"
+      }
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+# secrets — never commit
+.env
+.env.*
+*.env
+keystore.properties
+*.jks
+*.keystore
+local.properties
+
+# build output
+node_modules/
+web/dist/
+android/.gradle/
+android/build/
+android/app/build/
+android/app/src/main/assets/web/
+android/.idea/
+*.iml
+.DS_Store
+.claude/
+
+# android release signing (generated locally by keytool) and Kotlin 2 caches
+android/keystore.properties
+android/kkaeum-release.jks
+android/.kotlin/

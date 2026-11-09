@@ -15,6 +15,7 @@
 import { Component, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { ContactShadows, Environment, Lightformer, OrbitControls, useGLTF } from '@react-three/drei'
+import { Blocks, FloodFloor, Parts, Sweep, Water, type FloodScene, type Part } from './Scenes'
 import * as THREE from 'three'
 import {
   BELT_Y,
@@ -42,6 +43,14 @@ export interface CarState {
   tyreWarning: boolean
   /** a guard event just happened: brief soft glow on that part */
   pulse?: 'windows' | 'lights' | 'blind' | 'charge' | null
+  /** the part a warning lamp points at (glass body, part pulses amber) */
+  part?: Part | null
+  /** flood scene: real flood-trace map under the car, water on a heavy-rain warning */
+  flood?: FloodScene
+  /** trade-up: light sweep into the next car */
+  newCar?: boolean
+  /** passport: glass day blocks beside the car */
+  passport?: number
 }
 
 export const DEFAULT_CAR: CarState = {
@@ -84,6 +93,9 @@ interface Props {
 }
 
 const GLASS = new THREE.Color('#07090c')
+const WHITE = new THREE.Color('#ffffff')
+const NEXT_TINT = new THREE.Color('#5f9a96')
+const ENV = { light: `${import.meta.env.BASE_URL}3d/studio_light.hdr`, dark: `${import.meta.env.BASE_URL}3d/studio_dark.hdr` }
 const ROOF_GLASS = new THREE.Color('#0b0e12')
 const BLIND = new THREE.Color('#8a8d92')
 
@@ -371,6 +383,7 @@ function GlbCar({ state, theme }: { state: CarState; theme: 'light' | 'dark' }) 
   const open = useRef([0, 0, 0, 0])
   const lamp = useRef(0)
   const xr = useRef(0)
+  const nc = useRef(0)
   useFrame((_, dt) => {
     const k = 1 - Math.exp(-dt * 2)
     for (let n = 0; n < parts.panes.length; n++) {
@@ -387,10 +400,13 @@ function GlbCar({ state, theme }: { state: CarState; theme: 'light' | 'dark' }) 
       parts.tail.emissive.set('#ff1f3a')
       parts.tail.emissiveIntensity = 0.25 + 2.2 * lamp.current
     }
-    xr.current += ((state.xray ? 1 : 0) - xr.current) * k
+    xr.current += ((state.xray || state.part ? 1 : 0) - xr.current) * k
+    nc.current += ((state.newCar ? 1 : 0) - nc.current) * (1 - Math.exp(-dt * 1.4))
     for (const m of parts.bodyMats) {
       m.opacity = 1 - 0.82 * xr.current
       m.depthWrite = xr.current < 0.5
+      // trade-up: the silver car becomes the next one (Digital Teal) behind the light sweep
+      m.color.copy(WHITE).lerp(NEXT_TINT, nc.current)
     }
   })
   return <primitive object={parts.root} />
@@ -507,14 +523,16 @@ function ChargePort({ state }: { state: CarState }) {
   return <mesh geometry={geo} material={mat} position={[p.x, p.y, p.z + 0.01]} />
 }
 
-function Rig({ autoRotate, interactive, azimuth, distance, shiftX, shiftY }: { autoRotate: boolean; interactive: boolean; azimuth: number; distance: number; shiftX: number; shiftY: number }) {
+function Rig({ autoRotate, interactive, azimuth, distance, shiftX, shiftY, high }: { autoRotate: boolean; interactive: boolean; azimuth: number; distance: number; shiftX: number; shiftY: number; high?: boolean }) {
   const { camera, size } = useThree()
   useEffect(() => {
-    // three-quarter front view; azimuth swings around the car
+    // three-quarter front view; azimuth swings around the car. The flood scene looks down onto the map.
     const a = ((azimuth + 38) * Math.PI) / 180
-    camera.position.set(Math.cos(a) * distance, 1.9 * (distance / 7.8), Math.sin(a) * distance)
+    const el = high ? 0.5 : 0.24
+    const d = high ? distance * 1.6 : distance
+    camera.position.set(Math.cos(a) * d * Math.cos(el), 0.7 + d * Math.sin(el), Math.sin(a) * d * Math.cos(el))
     camera.lookAt(0, 0.7, 0)
-  }, [camera, azimuth, distance])
+  }, [camera, azimuth, distance, high])
   useEffect(() => {
     // Off-centre framing (the car sits beside the type, as on a product page) without moving the orbit centre.
     const cam = camera as THREE.PerspectiveCamera
@@ -522,7 +540,7 @@ function Rig({ autoRotate, interactive, azimuth, distance, shiftX, shiftY }: { a
     else cam.clearViewOffset()
     cam.updateProjectionMatrix()
   }, [camera, size, shiftX, shiftY])
-  return <OrbitControls target={[0, 0.72, 0]} enableZoom={false} enablePan={false} enableRotate={interactive} autoRotate={autoRotate} autoRotateSpeed={0.45} minPolarAngle={0.9} maxPolarAngle={1.45} />
+  return <OrbitControls target={[0, 0.72, 0]} enableZoom={false} enablePan={false} enableRotate={interactive} autoRotate={autoRotate} autoRotateSpeed={0.45} minPolarAngle={high ? 0.5 : 0.9} maxPolarAngle={1.45} />
 }
 
 /** Demand-mode driver: ~30 fps for 4 s whenever the car state changes, then idle. */
@@ -540,7 +558,16 @@ function AnimateOnChange({ state }: { state: CarState }) {
   return null
 }
 
+/** Studio light: the Cycles-rendered studio (tools/blender/envmap.py); Lightformers while it loads or if missing. */
 function Studio({ theme }: { theme: 'light' | 'dark' }) {
+  return (
+    <Suspense fallback={<StudioFallback theme={theme} />}>
+      <Environment files={ENV[theme]} environmentIntensity={theme === 'dark' ? 0.8 : 0.55} />
+    </Suspense>
+  )
+}
+
+function StudioFallback({ theme }: { theme: 'light' | 'dark' }) {
   const dark = theme === 'dark'
   return (
     <Environment resolution={256} frames={1}>
@@ -596,13 +623,20 @@ export function StudioCar({ state, theme = 'light', autoRotate = true, interacti
             </Suspense>
           </GlbBoundary>
           )}
-          <TyreHalo on={state.tyreWarning} />
+          <TyreHalo on={state.tyreWarning && !state.part} />
           <Pack state={state} theme={theme} />
           <ChargePort state={state} />
+          <Suspense fallback={null}>
+            <Parts show={state.xray || state.charging} part={state.part ?? null} />
+          </Suspense>
+          <FloodFloor flood={state.flood} />
+          <Water flood={state.flood} />
+          <Sweep on={Boolean(state.newCar)} />
+          <Blocks count={state.passport ?? 0} />
         </group>
         <ContactShadows position={[0, 0.001, 0]} opacity={theme === 'dark' ? 0.8 : 0.6} scale={HALF_L * 4.2} blur={2.6} far={2.2} resolution={512} color="#000" />
         {lowPower && <AnimateOnChange state={state} />}
-        <Rig autoRotate={autoRotate && !still && !lowPower} interactive={interactive} azimuth={azimuth} distance={distance} shiftX={shiftX} shiftY={shiftY} />
+        <Rig autoRotate={autoRotate && !still && !lowPower && !(state.flood && state.flood.level > 0)} interactive={interactive} azimuth={azimuth} distance={distance} shiftX={shiftX} shiftY={shiftY} high={Boolean(state.flood && state.flood.level > 0)} />
       </Canvas>
     </div>
   )

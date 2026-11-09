@@ -52,8 +52,34 @@ export function useTheme(snap: Snapshot | null): 'light' | 'dark' {
   return h >= 7 && h < 19 ? 'light' : 'dark'
 }
 
-export function carStateOf(s: Snapshot, xray = false): CarState {
+const PART_OF: Record<string, CarState['part']> = {
+  TPMS: 'tyre',
+  LOW_VOLT_BATTERY: 'lv',
+  EV_SYSTEM: 'hv',
+  POWER_DOWN: 'hv',
+  RBS: 'hv',
+  ENGINE: 'motor',
+  MDPS: 'motor',
+}
+
+export function carStateOf(s: Snapshot, xray = false, sheet: SheetKind | null = null): CarState {
+  const m = s.pub.map
+  const floodF = m?.factors.find((f) => f.kind === 'flood')
+  const driving = s.mode === 'driving'
+  const part = driving ? null : (s.warnings.map((w) => PART_OF[w.type]).find(Boolean) ?? null)
   return {
+    part,
+    flood:
+      !driving && m && floodF && m.level === '위험'
+        ? {
+            level: m.level === '위험' ? 1 : 0.3,
+            center: m.here,
+            target: m.best ? { lat: m.best.lat, lng: m.best.lng, name: m.best.name } : undefined,
+            tiles: (s.pub.feed.overlays ?? []).filter((o) => o.layer === 'flood'),
+          }
+        : undefined,
+    newCar: sheet === 'tradeUp' || s.suggestion?.kind === 'tradeUp',
+    passport: sheet === 'trade' ? s.passport.days : 0,
     windowsOpen: s.sig.windowsOpen ?? 0,
     headlights: Boolean(s.sig.headlightsOn),
     charging: s.mode === 'charging' && s.sig.chargeState === 'charging',
@@ -134,7 +160,8 @@ function Header({ snap }: { snap: Snapshot }) {
  * freezes into a still frame while driving (no motion in the driver's field of view).
  */
 function Scene({ snap, theme, portrait }: { snap: Snapshot; theme: 'light' | 'dark'; portrait?: boolean }) {
-  const car = useMemo(() => carStateOf(snap), [snap])
+  const sheet = useStore((s) => s.sheet)
+  const car = useMemo(() => carStateOf(snap, false, sheet), [snap, sheet])
   const driving = snap.mode === 'driving'
   return (
     <div className="jg-scene">

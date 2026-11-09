@@ -87,6 +87,8 @@ export interface GuardContext {
   map?: ValueMap | null
   /** today's exposure: a heavy-rain warning was seen, minutes inside a flood-trace zone under it */
   wxToday?: { alert: number; floodMin: number }
+  /** the driver explicitly raised the limit today (voice or card); the cap waits until it expires */
+  userHold?: boolean
 }
 
 export interface GuardResult {
@@ -295,23 +297,34 @@ export const RULES: Rule[] = [
   },
 
   {
+    // Long trip: the destination is entered at departure, not the night before. Instead of sitting at 100 %
+    // overnight, keep the daily 80 % and add one E-pit stop on the way (pre-conditioned on arrival).
     kind: 'tripCharge',
     cooldownMs: 6 * 3600e3,
-    test: ({ sig, rangeAtLimitKm: r }) => {
-      const plugged = isPlugged(sig)
+    test: ({ sig, valueManwon, pub }) => {
       const need = activeRouteKm(sig)
-      const rangeAtLimitKm = usableRange(r)
-      if (!plugged || need === undefined || rangeAtLimitKm === undefined) return null
-      if ((sig.chargeLimitPct ?? 100) >= 100 || need < rangeAtLimitKm * 0.9) return null
+      const range = usableRange(sig.rangeKm)
+      if (need === undefined || range === undefined || need < range * 0.9) return null
+      if (sig.navStatus !== 'ROUTE_READY' && sig.navStatus !== 'ROUTE_DRIVE') return null
+      const c = bestCharger(sig, pub)
+      const stop = c?.epit ? c.name : 'E-pit'
       return {
-        actions: [{ kind: 'chargeLimit', value: 100, reason: `내비 목적지 ${Math.round(need)}km > 80% 주행가능 ${Math.round(rangeAtLimitKm)}km` }],
+        actions: [],
         entry: {
           kind: 'tripCharge',
-          title: '장거리 일정 → 오늘만 100% 충전',
-          detail: `내비 목적지 ${Math.round(need)}km. 80%로는 ${Math.round(rangeAtLimitKm)}km라서 이번 한 번만 완충합니다.`,
-          won: 0,
-          basis: '여행 전 완충은 출발 직전에만: 고충전 상태로 오래 두지 않음',
-          say: `내비 목적지가 ${Math.round(need)}킬로미터라 이번만 100%까지 충전할게요. 도착하면 다시 80%로 돌려둘게요.`,
+          title: `장거리 ${Math.round(need)}km → 경로에 E-pit 한 번`,
+          detail: `지금 배터리로 약 ${Math.round(range)}km. 밤새 100%로 두지 않고, 가는 길에 E-pit에서 한 번 채우도록 안내하고 도착 전에 배터리를 예열해요.`,
+          won: sohWon(valueManwon, SOH_PER_CAPPED_SESSION),
+          basis: '고충전 상태 장시간 대기 회피(완충 1회분 SOH) + 예열된 급속충전',
+          say: `목적지가 ${Math.round(need)}킬로미터라 가는 길에 E-pit에서 한 번 충전하면 돼요. 도착 전에 배터리를 데워 둘게요.`,
+        },
+        suggestion: {
+          id: 'trip',
+          kind: 'tripCharge',
+          title: `가는 길에 E-pit 한 번 (${Math.round(need)}km)`,
+          detail: `지금 ${Math.round(sig.socPct ?? 0)}%로 약 ${Math.round(range)}km. 경로 중 E-pit을 추가하고 도착 전 예열해요. 완충해 두는 것보다 배터리에 좋아요.`,
+          channel: 'E-pit',
+          cta: { label: 'E-pit 경유 추가', action: { kind: 'searchPlace', value: stop, reason: '장거리 경로 충전' } },
         },
       }
     },
@@ -319,8 +332,9 @@ export const RULES: Rule[] = [
   {
     kind: 'chargeCap',
     cooldownMs: 8 * 3600e3,
-    test: ({ sig, valueManwon, rangeAtLimitKm }) => {
+    test: ({ sig, valueManwon, rangeAtLimitKm, userHold }) => {
       const plugged = isPlugged(sig)
+      if (userHold) return null // the driver asked for more today (Gleo / card)
       if (!plugged || (sig.chargeLimitPct ?? 100) <= 85) return null
       const need = activeRouteKm(sig)
       const range = usableRange(rangeAtLimitKm)

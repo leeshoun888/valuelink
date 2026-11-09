@@ -373,16 +373,18 @@ const DAY: Step[] = [
       s.plugIn(7)
     },
   },
+  { at: 1080, label: '01:50 충전 완료 (80%에서 멈춤)', run: () => {} },
   {
-    at: 820,
-    label: '21:30 내일 부산 일정, 내비 목적지 395km',
+    at: 1410,
+    label: '다음 날 07:20 부산 출발, 내비 목적지 395km',
     run: (s) => {
+      s.unplug()
+      s.sig.doorsLocked = true
+      s.drive({ name: '부산', km: 395, cruiseKph: 95, to: [129.0756, 35.1796] })
       s.sig.routeRemainingKm = 395
-      s.sig.routeEtaMin = 290
       s.sig.navStatus = 'ROUTE_READY'
     },
   },
-  { at: 1080, label: '01:50 충전 완료', run: () => {} },
 ]
 
 /** Today at hh:mm local time. */

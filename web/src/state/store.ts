@@ -153,7 +153,7 @@ function gleo(rt: Runtime, json: string) {
     case 'SET_CHARGE_LIMIT': {
       const pct = Math.round(Math.min(100, Math.max(50, Number(params.percent ?? 80))))
       void rt.setChargeLimit(pct)
-      return { status: 'success', message: `충전 상한을 ${pct}%로 맞출게요.` }
+      return { status: 'success', message: pct > 85 ? `오늘만 ${pct}%까지 충전할게요. 내일부터는 다시 80%로 돌려둘게요.` : `충전 상한을 ${pct}%로 맞출게요.` }
     }
     case 'FIND_SERVICE_CENTER':
       void rt.findService()

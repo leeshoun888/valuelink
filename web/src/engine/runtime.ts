@@ -240,6 +240,7 @@ export class Runtime {
       harshDelta,
       pub: this.feed ?? undefined,
       map: this.snap?.pub.map,
+      userHold: sig.t < this.userHoldUntil,
       wxToday: this.wx.day === dayKey(sig.t) ? { alert: this.wx.alert, floodMin: this.wx.floodMin } : undefined,
     }
     for (const rule of RULES) {
@@ -309,10 +310,13 @@ export class Runtime {
     this.suggestion = null
   }
 
-  /** Driver-initiated charge limit (Gleo SET_CHARGE_LIMIT, card buttons). */
+  /** Driver-initiated charge limit (Gleo SET_CHARGE_LIMIT, card buttons). Above 85 % it holds for today only. */
+  private userHoldUntil = -Infinity
   async setChargeLimit(pct: number) {
     const ok = await this.bus.apply({ kind: 'chargeLimit', value: pct, reason: '운전자 요청' })
-    this.say(ok ? `충전 상한을 ${pct}%로 맞췄어요.` : `충전 설정에서 ${pct}%로 맞춰 주세요.`)
+    const t = this.bus.read().t
+    this.userHoldUntil = pct > 85 ? t + 18 * 3600e3 : -Infinity
+    this.say(ok ? (pct > 85 ? `오늘만 ${pct}%까지 충전할게요. 내일부터는 다시 80%로 돌려둘게요.` : `충전 상한을 ${pct}%로 맞췄어요.`) : `충전 설정에서 ${pct}%로 맞춰 주세요.`)
     return ok
   }
 

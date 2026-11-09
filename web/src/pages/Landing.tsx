@@ -29,40 +29,52 @@ function Render({ name, alt, className }: { name: string; alt: string; className
   return <img className={className} src={`${R}${name}.jpg`} alt={alt} onError={() => setOk(false)} loading="lazy" />
 }
 
-const STEPS: { k: string; title: string; body: string; sdk: string; car: Partial<CarState> }[] = [
+// The real data the car app reads around Gangnam (tools/publicdata-capture.mjs): flood-trace tiles and the lot
+// the Value Map recommends. The landing plays the same in-app scenes on it.
+const PUB = `${import.meta.env.BASE_URL}pub/tiles/`
+const OFFICE = { lat: 37.4959, lng: 127.0276 }
+const LOT = { lat: 37.4953545, lng: 127.0332497, name: '역삼1동문화센터 공영주차장' }
+const FLOOD_TILES = (() => {
+  const t = []
+  for (let tx = Math.floor((OFFICE.lng - 0.013) / 0.01); tx <= Math.floor((OFFICE.lng + 0.013) / 0.01); tx++)
+    for (let ty = Math.floor((OFFICE.lat - 0.013) / 0.01); ty <= Math.floor((OFFICE.lat + 0.013) / 0.01); ty++)
+      t.push({ url: `${PUB}flood_${tx}_${ty}.png`, west: tx * 0.01, south: ty * 0.01, east: (tx + 1) * 0.01, north: (ty + 1) * 0.01 })
+  return t
+})()
+
+const STEPS: { k: string; title: string; body: string; sdk: string; car: (phase: number) => Partial<CarState> }[] = [
+  {
+    k: 'flood',
+    title: '물이 차기 전에,\n차가 먼저 피합니다.',
+    body: '행정안전부 침수흔적도에 기록된 자리에 세워 둔 차. 기상청 호우경보가 내리면 차가 그 자리의 기대손실을 계산하고, 502m 옆 침수 이력 없는 공영주차장으로 안내합니다. 실제 공공데이터 위에서 동작합니다.',
+    sdk: '기상청 특보 × 침수흔적도 → NaviHelper.SearchPlace',
+    car: (p) => ({ flood: { level: 1, safe: p >= 2, center: OFFICE, target: LOT, tiles: FLOOD_TILES } }),
+  },
+  {
+    k: 'warning',
+    title: '경고등 하나, 차 값 −2%.\n지금 고치면 0원.',
+    body: '경고등이 켜지는 순간, 어떤 부품인지 차가 보여주고 방치했을 때의 가치 손실을 원화로 알려줍니다. 가까운 블루핸즈로 바로 안내하고, 고친 날은 차량 여권에 남아 매입가가 회복됩니다.',
+    sdk: 'Safety.getTelltalesInfo → NaviHelper.SearchPlace("블루핸즈")',
+    car: (p) => ({ part: (['tyre', 'lv', 'hv'] as const)[p % 3] }),
+  },
   {
     k: 'charge',
-    title: '충전은 80%까지만.\n장거리 전날엔 100%로.',
-    body: '플러그를 꽂으면 차가 직접 충전 상한을 80%로 맞춥니다. 내비 목적지가 80%로 갈 수 없는 거리면, 그날만 100%로 올립니다.',
-    sdk: 'EvBattery.setEvChargePercentLimit',
-    car: { charging: true, xray: true, socPct: 64, chargeLimitPct: 80 },
+    title: '평소엔 80%.\n먼 길은 가는 길에 E-pit 한 번.',
+    body: '플러그를 꽂으면 차가 충전 상한을 80%로 맞춥니다. 밤새 100%로 두지 않고, 장거리 출발 때는 경로 중 빈 충전기가 있는 E-pit을 찾아 도착 전에 배터리를 예열합니다.',
+    sdk: 'EvBattery.setEvChargePercentLimit · 한국환경공단 충전기 상태',
+    car: (p) => ({ charging: true, xray: true, socPct: 58 + Math.min(p, 1) * 22, chargeLimitPct: 80 }),
   },
   {
-    k: 'rain',
-    title: '비가 오면,\n열린 창문을 닫습니다.',
-    body: '와이퍼가 움직이고 창문이 열린 채 주차돼 있으면, 차가 스스로 창문을 올립니다. 실내 침수는 중고 감정의 큰 감점입니다.',
-    sdk: 'Window.setWindowPosition',
-    car: { windowsOpen: 0 },
-  },
-  {
-    k: 'lights',
-    title: '켜두고 내린 전조등,\n차가 끕니다.',
-    body: 'P단 정차 후 1분이 지나도 전조등이 켜져 있으면 끕니다. 12V 배터리 방전과 긴급출동을 미리 막습니다.',
-    sdk: 'Light.setLowBeamLightSwitch',
-    car: { headlights: false },
-  },
-  {
-    k: 'tyre',
-    title: '경고등이 켜지면,\n가까운 블루핸즈로.',
-    body: '타이어 공기압, 12V 배터리, EV 시스템. 경고등을 읽어 내비에서 블루핸즈를 바로 찾습니다. 미해결 경고등은 자산 가치를 낮추는 요인입니다.',
-    sdk: 'Safety.getTelltalesInfo → NaviHelper.SearchPlace',
-    car: { tyreWarning: true },
+    k: 'tradeup',
+    title: '가장 좋은 교체 시점,\n차가 먼저 말합니다.',
+    body: '인증중고차 매입 기준(5년·10만km)이 끝나기 4개월 전, 지역 보조금이 남아 있을 때. 신차 5,550만원 − 보조금 650만원 − 여권 매입가 3,250만원 − 재구매 할인 100만원 = 실 부담 1,550만원, 현대캐피탈 월 46만원.',
+    sdk: '차량 여권 → 인증중고차 · 신차 · 현대캐피탈',
+    car: (p) => ({ newCar: p >= 1 }),
   },
 ]
 
 function Story() {
   const [step, setStep] = useState(0)
-  const [rainOpen, setRainOpen] = useState(1)
   const refs = useRef<(HTMLDivElement | null)[]>([])
   useEffect(() => {
     const io = new IntersectionObserver(
@@ -74,26 +86,17 @@ function Story() {
     refs.current.forEach((r) => r && io.observe(r))
     return () => io.disconnect()
   }, [])
-  // replay the moment each time a step becomes active: window open → closes, lamps on → off
+  // replay each moment when its step becomes active (water rises then drains, parts cycle, the pack fills,
+  // the light sweep turns the car into the next one)
   const [phase, setPhase] = useState(0)
   useEffect(() => {
     setPhase(0)
-    setRainOpen(2)
-    const t = window.setTimeout(() => {
-      setPhase(1)
-      setRainOpen(0)
-    }, 1400)
-    return () => clearTimeout(t)
+    let n = 0
+    const id = window.setInterval(() => setPhase(++n), 2600)
+    return () => clearInterval(id)
   }, [step])
   const s = STEPS[step]
-  const car: CarState = {
-    ...DEFAULT_CAR,
-    sohPct: 98.1,
-    ...s.car,
-    windowsOpen: s.k === 'rain' ? rainOpen : 0,
-    headlights: s.k === 'lights' ? phase === 0 : false,
-    socPct: s.k === 'charge' ? 58 + phase * 22 : 72,
-  }
+  const car: CarState = { ...DEFAULT_CAR, sohPct: 98.1, socPct: 72, ...s.car(phase) }
   return (
     <section className="lp-story" id="guard">
       <div className="lp-story-stage">
@@ -212,24 +215,27 @@ export default function Landing() {
 
       <section className="lp-value lp-city" id="city">
         <p className="lp-eyebrow" data-reveal>
-          도시가 함께 지킨다
+          그리고 매일, 조용히
         </p>
         <h2 data-reveal>
-          비가 오기 전에.
+          차의 신호와
           <br />
-          물이 차기 전에.
+          도시의 데이터로.
         </h2>
         <p className="lp-sub" data-reveal>
-          차 안의 신호에 공공데이터를 겹칩니다. 차를 세우는 순간 그 자리의 자산 위험을 원 단위로 계산하고, 위험하면 차가 먼저 움직입니다. 정확한 위치 대신 기상청 5km 격자만 밖으로 나갑니다.
+          기상청, 행정안전부, 경찰청, 도로교통공단, 한국환경공단의 공공데이터를 차 안의 신호에 겹칩니다. 정확한 위치 대신 기상청 5km 격자와 1km 지도 타일만 밖으로 나갑니다.
         </p>
+        <div className="lp-city-visual" data-reveal>
+          <Render name="flood_dark" alt="실제 침수흔적도 위에 선 아이오닉 5, 바퀴 높이까지 찬 물과 안전한 공영주차장 표시" className="lp-city-img" />
+        </div>
         <div className="lp-tiles">
           {[
-            ['기상청 초단기예보', '30분 뒤 비 소식에 열린 창문을 미리 닫습니다. 와이퍼가 움직이기 전에.'],
-            ['기상청 기상특보 × 행안부 침수흔적도', '호우경보가 내린 날, 예전에 물에 잠긴 자리에 서 있으면 가장 가까운 높은 주차장으로 안내합니다.'],
-            ['생활안전지도 범죄주의구간', '차량 범죄가 잦은 골목에 세우면 문 잠금을 확인합니다.'],
-            ['도로교통공단 사고다발지', '사고 이력은 시세를 크게 낮춥니다. 사고다발지 앞에서 먼저 감속을 안내합니다.'],
-            ['전국주차장정보 + 건축물대장', '옥내·고층 공영주차장을 찾아 위험별로 어디에 세울지 답합니다.'],
-            ['무공해차 통합누리집 보조금', '지역 보조금이 소진되기 전에 교체 최적 시점을 알립니다.'],
+            ['비가 오기 30분 전, 창문이 먼저', '기상청 초단기예보로 비 소식을 먼저 받고, 열린 창문을 닫습니다.'],
+            ['절도 잦은 골목이면, 문 잠금', '경찰청 범죄주의구간(절도) 위에 세우면 문을 잠그고 귀중품을 안내합니다.'],
+            ['결빙 사고다발지 600m 전', '도로교통공단 사고다발지 앞에서 먼저 감속을 안내합니다.'],
+            ['빈 E-pit 충전기로', '한국환경공단 실시간 상태로 지금 비어 있는 E-pit을 찾습니다.'],
+            ['폭염 속 충전은 천천히', '바깥이 30℃를 넘으면 충전 전류를 낮춰 셀 온도를 지킵니다.'],
+            ['켜두고 내린 전조등', 'P단 1분 뒤에도 켜져 있으면 끄고, 12V 방전을 막습니다.'],
           ].map(([t, d]) => (
             <div key={t} className="lp-tile" data-reveal>
               <h4>{t}</h4>
@@ -249,7 +255,7 @@ export default function Landing() {
           위조할 수 없는 여권.
         </h2>
         <p className="lp-sub" data-reveal>
-          주행거리, 바퀴 회전 수로 잰 독립 거리, 배터리 건강도, 경고등과 정비, 충전 습관. 하루 한 블록씩 이전 블록의 SHA-256을 품고 이어집니다. 주행거리를 되돌리거나 하루를 지우면 사슬이 끊깁니다.
+          주행거리, 바퀴 회전 수로 잰 독립 거리, 배터리 건강도, 경고등과 정비, 충전 습관, 그리고 호우특보 때 침수 구역에 머문 시간까지. 하루 한 블록씩 이전 블록의 SHA-256을 품고 이어집니다. 주행거리를 되돌리면 사슬이 끊기고, 침수차가 아니라는 사실은 데이터로 남습니다.
         </p>
         <div className="lp-chain" data-reveal>
           {['2025.03.14', '2025.09.02', '2026.04.21', '오늘'].map((d, i) => (

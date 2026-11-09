@@ -97,7 +97,8 @@ export default function Console() {
 }
 
 function Twin({ snap }: { snap: Snapshot }) {
-  const car = useMemo(() => carStateOf(snap), [snap])
+  const sheet = useStore((s) => s.sheet)
+  const car = useMemo(() => carStateOf(snap, false, sheet), [snap, sheet])
   const s = snap.sig
   return (
     <div className="mc-stage">
@@ -146,7 +147,7 @@ function Triggers() {
       >
         완속 충전 (상한 100%)
       </button>
-      <button onClick={t(() => ((sim.sig.routeRemainingKm = 395), (sim.sig.navStatus = 'ROUTE_READY')))}>부산 395km 목적지</button>
+      <button onClick={t(() => (sim.drive({ name: '부산', km: 395, cruiseKph: 95, to: [129.0756, 35.1796] }), (sim.sig.routeRemainingKm = 395), (sim.sig.navStatus = 'ROUTE_READY')))}>부산 395km 출발</button>
       <button onClick={t(() => sim.unplug())}>충전기 분리</button>
       <button
         onClick={t(() => {

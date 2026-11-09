@@ -172,6 +172,71 @@ if SHOT == 'xray_dark':
         c.scale = (0.15, 0.62, 0.1)
         c.data.materials.append(mat(f'cell{k}', (0.92, 0.95, 1.0) if i < 13 else (0.08, 0.08, 0.09), 0.3, emit=1.2 if i < 13 else 0.0))
 
+if SHOT == 'flood_dark':
+    # ValueLink flood scene: the real 침수흔적도 (tools/blender/floodmap.py) glowing on the studio floor, water up
+    # to the hubs, and the recommended public lot 502 m east (역삼1동문화센터) as a blue pin.
+    FLOOR = 16.0
+    bpy.ops.mesh.primitive_plane_add(size=FLOOR, location=(0, 0, 0.004))
+    fl = bpy.context.object
+    m = bpy.data.materials.new('floodmap')
+    m.use_nodes = True
+    m.blend_method = 'BLEND'
+    nt = m.node_tree
+    nt.nodes.clear()
+    tex = nt.nodes.new('ShaderNodeTexImage')
+    tex.image = bpy.data.images.load(os.environ.get('FLOODMAP', '/Volumes/Transcend/devtools/tmp/blender/floodmap.png'))
+    em = nt.nodes.new('ShaderNodeEmission')
+    em.inputs['Strength'].default_value = 2.2
+    tr = nt.nodes.new('ShaderNodeBsdfTransparent')
+    mix = nt.nodes.new('ShaderNodeMixShader')
+    out = nt.nodes.new('ShaderNodeOutputMaterial')
+    nt.links.new(tex.outputs['Color'], em.inputs['Color'])
+    nt.links.new(tex.outputs['Alpha'], mix.inputs['Fac'])
+    nt.links.new(tr.outputs[0], mix.inputs[1])
+    nt.links.new(em.outputs[0], mix.inputs[2])
+    nt.links.new(mix.outputs[0], out.inputs[0])
+    fl.data.materials.append(m)
+    # water: clear, slightly blue, gently rippled
+    bpy.ops.mesh.primitive_circle_add(vertices=256, radius=6.2, fill_type='NGON', location=(0, 0, 0.28))
+    wt = bpy.context.object
+    wm = bpy.data.materials.new('water')
+    wm.use_nodes = True
+    wb = wm.node_tree.nodes['Principled BSDF']
+    wb.inputs['Base Color'].default_value = (0.08, 0.32, 0.72, 1)
+    wb.inputs['Transmission Weight'].default_value = 0.92
+    wb.inputs['IOR'].default_value = 1.333
+    wb.inputs['Roughness'].default_value = 0.2
+    nz = wm.node_tree.nodes.new('ShaderNodeTexNoise')
+    nz.inputs['Scale'].default_value = 3.5
+    bump = wm.node_tree.nodes.new('ShaderNodeBump')
+    bump.inputs['Strength'].default_value = 0.08
+    wm.node_tree.links.new(nz.outputs['Fac'], bump.inputs['Height'])
+    wm.node_tree.links.new(bump.outputs['Normal'], wb.inputs['Normal'])
+    wt.data.materials.append(wm)
+    # the higher camera would see the softboxes and flags: keep them in reflections only
+    keep = ('floodmap', 'water', 'pin', 'lamp_')
+    for o in bpy.data.objects:
+        if o.type != 'MESH' or o.name.startswith(keep):
+            continue
+        for sl in o.material_slots:
+            mt = sl.material
+            if not mt or not mt.use_nodes or mt.name.startswith(keep):
+                continue
+            emits = [n for n in mt.node_tree.nodes if n.type == 'EMISSION' and n.inputs['Strength'].default_value > 0.5]
+            pb = mt.node_tree.nodes.get('Principled BSDF')
+            dark_flag = pb is not None and pb.inputs['Base Color'].default_value[0] < 0.01 and pb.inputs['Roughness'].default_value > 0.9
+            if emits or dark_flag:
+                o.visible_camera = False
+                print('hidden from camera:', o.name)
+    # target pin: 502 m east, 62 m south at 1 m = 16/2000 scene units
+    k = FLOOR / 2000
+    px, py = 492 * k, -62 * k
+    bpy.ops.mesh.primitive_cylinder_add(radius=0.32, depth=0.01, location=(px, py, 0.01))
+    pin = bpy.context.object
+    pin.data.materials.append(mat('pin', (0.04, 0.52, 1.0), 0.3, emit=6.0))
+    bpy.ops.mesh.primitive_cylinder_add(radius=0.025, depth=1.0, location=(px, py, 0.5))
+    bpy.context.object.data.materials.append(mat('pin_stem', (0.04, 0.52, 1.0), 0.3, emit=6.0))
+
 cam_data = bpy.data.cameras.new('cam')
 cam = bpy.data.objects.new('cam', cam_data)
 scene.collection.objects.link(cam)
@@ -182,6 +247,8 @@ cam_data.dof.aperture_fstop = 8
 target = Vector((0.05, 0, 0.72))
 
 def place(az_deg, dist=13.5, h=2.1):
+    if SHOT == 'flood_dark':
+        dist, h = 21.0, 8.2
     a = math.radians(az_deg)
     cam.location = Vector((math.cos(a) * dist, math.sin(a) * dist, h))
     cam.rotation_euler = (target - cam.location).to_track_quat('-Z', 'Y').to_euler()
@@ -190,7 +257,7 @@ def place(az_deg, dist=13.5, h=2.1):
     cyc.rotation_euler = (0, 0, a - math.pi / 2)
 
 shots = {
-    'hero_light': 32, 'hero_dark': 32, 'side_light': 90, 'rear_dark': 145, 'xray_dark': 30,
+    'hero_light': 32, 'hero_dark': 32, 'flood_dark': 40, 'side_light': 90, 'rear_dark': 145, 'xray_dark': 30,
 }
 if SHOT.startswith('turntable'):
     for f in range(72):

@@ -24,3 +24,4 @@ android/keystore.properties
 android/kkaeum-release.jks
 android/.kotlin/
 web/public/3d/renders/*.png
+tools/blender/__pycache__/

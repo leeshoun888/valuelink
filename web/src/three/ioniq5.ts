@@ -113,11 +113,22 @@ export function archTop(dx: number) {
   return WHEEL_Y + ARCH_R * (0.92 - 0.55 * Math.pow(f, 1.5))
 }
 
+/** Lowest body line without the arches: sill cladding ≈ 210 mm; front lip 260 mm (17.5° approach); rear bumper
+ *  400 mm (25.4° departure). The sections are built on this smooth line so they never jump at an arch edge. */
+export function sillAt(x: number) {
+  return 0.22 + 0.06 * sstep(2.0, 2.42, x) + 0.2 * sstep(1.9, 2.42, -x)
+}
+
+/** Height of the wheel-well ceiling at x (−∞ outside the arches). */
+export function archCeil(x: number) {
+  let c = -Infinity
+  for (const cx of WHEEL_X) c = Math.max(c, archTop(x - cx))
+  return c
+}
+
+/** Lowest visible body point at x (the arch top inside an arch). */
 export function botAt(x: number) {
-  // sill cladding ≈ 210 mm; front lip 260 mm (17.5° approach); rear bumper 400 mm (25.4° departure)
-  let b = 0.22 + 0.06 * sstep(2.0, 2.42, x) + 0.2 * sstep(1.9, 2.42, -x)
-  for (const cx of WHEEL_X) b = Math.max(b, archTop(x - cx))
-  return b
+  return Math.max(sillAt(x), archCeil(x))
 }
 export const widthAt = (x: number) => 0.985 * (1 - 0.07 * sstep(1.55, 2.42, x) - 0.04 * sstep(1.7, 2.42, -x))
 export const tumble = (y: number) => 1 - 0.27 * sstep(BELT_Y - 0.02, 1.62, y)
@@ -129,7 +140,7 @@ export function profile(x: number) {
   const sh = Math.max(0.02, Math.sqrt(1 - Math.pow(ax, e)))
   const sw = Math.max(0.02, Math.sqrt(1 - Math.pow(ax, x < 0 ? 14 : 12)))
   const top = topAt(x)
-  const bot = botAt(x)
+  const bot = sillAt(x)
   const cy = (top + bot) / 2
   return { top, bot, cy, b: ((top - bot) / 2) * sh, a: widthAt(x) * sw }
 }
@@ -149,7 +160,10 @@ export function surfacePoint(x: number, theta: number, out: THREE.Vector3) {
   const s = Math.sin(theta)
   const y = p.cy + p.b * Math.sign(s) * Math.pow(Math.abs(s), 2 / SQ_N)
   const z = p.a * Math.sign(c) * Math.pow(Math.abs(c), 2 / SQ_N) * tumble(y)
-  return out.set(x, y, z)
+  // Wheel arches are cut out of the continuous section: everything below the arch top folds up into a flat
+  // wheel-well ceiling, so only the arch lip creases (a raised section bottom used to shift the whole
+  // section, roof included, and left a seam up the body at every arch edge).
+  return out.set(x, Math.max(y, archCeil(x)), z)
 }
 
 /** Outermost body x (front: max, rear: min) at height y and half-width |z|. */
@@ -157,7 +171,7 @@ export function faceX(y: number, z: number, front: boolean) {
   const dir = front ? -1 : 1
   for (let x = front ? HALF_L : -HALF_L; Math.abs(x) > 1.6; x += dir * 0.002) {
     const p = profile(x)
-    if (y > p.bot && y < p.top && sideZ(x, y) >= Math.abs(z)) return x
+    if (y > botAt(x) && y < p.top && sideZ(x, y) >= Math.abs(z)) return x
   }
   return front ? 1.6 : -1.6
 }

@@ -1,31 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 깨움 glyph: an eye whose pupil is a sun rising over the lower lid. Kept inside the 66dp adaptive safe zone. -->
+<!-- 밸류링크 mark: two hexagonal rings linked like a chain (docs/logo/build/mark.py). Inside the 66dp safe zone. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- eye outline -->
     <path
-        android:pathData="M30,58 Q54,34 78,58 Q54,74 30,58 Z"
-        android:strokeColor="#3CF2C8"
-        android:strokeWidth="3.5"
-        android:strokeLineJoin="round"
-        android:fillColor="#00000000" />
-    <!-- horizon -->
-    <path
-        android:pathData="M38,58 L70,58"
-        android:strokeColor="#3CF2C8"
-        android:strokeWidth="2.5"
-        android:strokeLineCap="round" />
-    <!-- rising sun (pupil) -->
-    <path
-        android:pathData="M45,58 A9,9 0 0,1 63,58 Z"
-        android:fillColor="#3CF2C8" />
-    <!-- rays -->
-    <path
-        android:pathData="M54,41 L54,35 M42,44 L38,39 M66,44 L70,39"
-        android:strokeColor="#3CF2C8"
-        android:strokeWidth="3.5"
-        android:strokeLineCap="round" />
+        android:fillType="evenOdd"
+        android:fillColor="@color/logo_ink"
+        android:pathData="M27.00,62.77 L27.06,63.22 L27.21,63.59 L27.51,64.00 L27.87,64.27 L43.04,73.03 L43.48,73.22 L43.88,73.28 L44.38,73.22 L44.80,73.05 L49.62,70.27 L49.94,70.03 L50.27,69.62 L50.47,69.14 L50.51,68.62 L50.40,68.11 L50.14,67.65 L49.80,67.32 L43.99,63.10 L36.78,58.92 L36.38,58.58 L36.15,58.12 L36.09,57.74 L36.09,50.26 L36.24,49.64 L36.47,49.32 L36.78,49.08 L43.25,45.34 L43.61,45.20 L44.13,45.17 L44.61,45.34 L58.24,53.21 L58.85,53.41 L59.44,53.40 L59.93,53.22 L60.35,52.91 L60.71,52.39 L60.85,51.88 L60.86,45.22 L60.80,44.78 L60.65,44.41 L60.35,44.00 L59.97,43.71 L44.80,34.95 L44.38,34.78 L43.98,34.72 L43.48,34.78 L43.07,34.95 L27.89,43.71 L27.51,44.00 L27.21,44.41 L27.06,44.78 L27.00,45.26 L27.00,62.77 Z M81.00,45.22 L80.94,44.78 L80.79,44.41 L80.49,44.00 L80.13,43.72 L64.96,34.97 L64.51,34.78 L64.12,34.72 L63.62,34.78 L63.20,34.95 L58.38,37.73 L58.06,37.97 L57.73,38.38 L57.53,38.86 L57.49,39.38 L57.60,39.89 L57.86,40.35 L58.20,40.68 L64.01,44.90 L71.22,49.08 L71.62,49.42 L71.85,49.88 L71.91,50.26 L71.91,57.74 L71.76,58.36 L71.53,58.68 L71.22,58.92 L64.75,62.66 L64.39,62.80 L63.87,62.83 L63.38,62.66 L49.76,54.79 L49.15,54.58 L48.56,54.60 L48.06,54.78 L47.65,55.09 L47.29,55.61 L47.15,56.12 L47.14,62.77 L47.20,63.22 L47.35,63.59 L47.65,64.00 L48.03,64.29 L63.20,73.05 L63.62,73.22 L64.02,73.28 L64.51,73.22 L64.93,73.05 L80.10,64.29 L80.49,64.00 L80.79,63.59 L80.94,63.22 L81.00,62.74 L81.00,45.22 Z" />
 </vector>

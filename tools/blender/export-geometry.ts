@@ -14,12 +14,45 @@ const U = 360
 const V = 180
 const out: Record<string, unknown> = { U, V, HALF_L, BELT_Y, WHEEL_X, WHEEL_Y, WHEEL_R, ARCH_R, TRACK_Z }
 
+// Rows around the section are spaced by arc length, not by angle: the boxy superellipse (SQ_N 6.5) packs
+// almost all of its angle into the corners, which left ~3 rows over the whole flat side and stretched the
+// baked shading into vertical smears. One table (mid-car section) keeps the grid regular along the car.
+const ARC_N = 20000
+const arcTh = new Float64Array(ARC_N + 1)
+const arcS = new Float64Array(ARC_N + 1)
+{
+  const a = new THREE.Vector3()
+  const b = new THREE.Vector3()
+  surfacePoint(0, 0, a)
+  for (let k = 1; k <= ARC_N; k++) {
+    arcTh[k] = (Math.PI * 2 * k) / ARC_N
+    surfacePoint(0, arcTh[k], b)
+    arcS[k] = arcS[k - 1] + a.distanceTo(b)
+    a.copy(b)
+  }
+  for (let k = 0; k <= ARC_N; k++) arcS[k] /= arcS[ARC_N]
+}
+const lerpTable = (xs: Float64Array, ys: Float64Array, x: number) => {
+  let lo = 0
+  let hi = xs.length - 1
+  while (hi - lo > 1) {
+    const m = (lo + hi) >> 1
+    if (xs[m] <= x) lo = m
+    else hi = m
+  }
+  const t = (x - xs[lo]) / (xs[hi] - xs[lo] || 1)
+  return ys[lo] + (ys[hi] - ys[lo]) * t
+}
+/** v (0..1 around the section) -> superellipse angle, and back. */
+const thetaOfV = (v: number) => lerpTable(arcS, arcTh, v)
+const vOfTheta = (th: number) => lerpTable(arcTh, arcS, th)
+
 const pos: number[] = []
 const v3 = new THREE.Vector3()
 for (let i = 0; i < U; i++) {
   const x = -HALF_L * Math.cos((Math.PI * i) / (U - 1))
   for (let j = 0; j < V; j++) {
-    surfacePoint(x, (Math.PI * 2 * j) / V, v3)
+    surfacePoint(x, thetaOfV(j / V), v3)
     pos.push(+v3.x.toFixed(5), +v3.y.toFixed(5), +v3.z.toFixed(5))
   }
 }
@@ -37,7 +70,7 @@ function toUV(x: number, y: number, z: number): [number, number] | null {
   if (th < 0) th += Math.PI * 2
   const back = surfacePoint(x, th, new THREE.Vector3())
   if (back.distanceTo(new THREE.Vector3(x, y, z / 1.006)) > 0.035) return null
-  return [Math.acos(Math.max(-1, Math.min(1, -x / HALF_L))) / Math.PI, th / (Math.PI * 2)]
+  return [Math.acos(Math.max(-1, Math.min(1, -x / HALF_L))) / Math.PI, vOfTheta(th)]
 }
 
 const [strong, faint] = buildFeatureLines()

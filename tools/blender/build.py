@@ -95,6 +95,18 @@ bm.to_mesh(me)
 bm.free()
 for poly in me.polygons:
     poly.use_smooth = True
+# Crisp arch lips: split the shading only where the surface really folds (the wheel-well cut), so the smooth
+# normals never blend across it and smear reflections up the body.
+bm = bmesh.new()
+bm.from_mesh(me)
+nsharp = 0
+for e in bm.edges:
+    if len(e.link_faces) == 2 and e.calc_face_angle(0) > math.radians(40):
+        e.smooth = False
+        nsharp += 1
+bm.to_mesh(me)
+bm.free()
+print('sharp edges', nsharp)
 
 order = [z[0] for z in ZONES]
 me.materials.append(body_mat)
@@ -359,13 +371,29 @@ def texel_zones(w, h):
         zone[mask & free] = order.index(name)
         free[mask] = False
     free = np.ones((h, w), dtype=bool)
+    # black arch cladding: a 6 cm band that follows the squared IONIQ 5 arch cut (a circular ring did not
+    # match the cut and left a jagged edge along the arch top)
     arch = np.zeros((h, w), dtype=bool)
+    CL = 0.06
     for cx in WX:
-        r = np.hypot(x - cx, y - WY)
-        arch |= (r > AR * 0.98) & (r < AR * 1.16) & (y > 0.3) & (np.abs(nz) > 0.45)
+        a = np.abs(x - cx) * AR / (AR + CL)
+        flat = AR * 0.6
+        fr = np.clip((a - flat) / (AR - flat), 0, 1)
+        t = np.where(a <= flat, WY + AR * 0.92, WY + AR * (0.92 - 0.55 * fr ** 1.5)) + CL
+        arch |= (np.abs(x - cx) < AR + CL) & (y < t) & (y > 0.3) & (np.abs(nz) > 0.3)
     front_intake = (x > 2.05) & (y < 0.62)
     rear_bumper = (x < -2.1) & (y < 0.6)
-    put(arch | (y < 0.33) | front_intake | rear_bumper, 'trim')
+    # the flat wheel-well ceilings behind the arch cut: exactly at the arch-top height (ioniq5.ts archCeil);
+    # a normal test bled into the body side just above the lip
+    ceil = np.full_like(x, -np.inf)
+    for cx in WX:
+        a = np.abs(x - cx)
+        flat = AR * 0.6
+        fr = np.clip((a - flat) / (AR - flat), 0, 1)
+        t = np.where(a <= flat, WY + AR * 0.92, WY + AR * (0.92 - 0.55 * fr ** 1.5))
+        ceil = np.maximum(ceil, np.where(a < AR, t, -np.inf))
+    well = (y < ceil + 0.004) & (y > 0.3)
+    put(arch | well | (y < 0.33) | front_intake | rear_bumper, 'trim')
     put((y < BELT + 0.025) | (x > 1.27) | (x < -2.36), 'paint')
     put((x > 0.12) & (x < 1.15) & (y > BELT + 0.05) & (np.abs(z) > 0.5) & (ny > 0.2), 'apillar')
     put((x > 0.33) & (x < 1.12), 'glass')

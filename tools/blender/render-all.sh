@@ -7,8 +7,8 @@ K=/Volumes/Transcend/공모전_현대자동차/carvalue
 G=$TMPDIR/blender
 OUT=$K/web/public/3d/renders
 mkdir -p $OUT
-$B -b --python $K/tools/blender/build.py -- $G/ioniq5.json $G/out 512 '#c3c6cb' 2>&1 | grep -E "EXPORTED|Error"
-$B -b --python $K/tools/blender/build.py -- $G/ioniq5.json $G/out_black 512 '#141518' 2>&1 | grep -E "EXPORTED|Error"
+$B -b --python $K/tools/blender/build.py -- $G/ioniq5.json $G/out 2048 '#c3c6cb' 2>&1 | grep -E "EXPORTED|Error"
+$B -b --python $K/tools/blender/build.py -- $G/ioniq5.json $G/out_black 2048 '#141518' 2>&1 | grep -E "EXPORTED|Error"
 cp $G/out/ioniq5.glb $K/web/public/3d/ioniq5.glb
 cp $G/out_black/ioniq5.glb $K/web/public/3d/ioniq5_black.glb
 for s in hero_light side_light; do

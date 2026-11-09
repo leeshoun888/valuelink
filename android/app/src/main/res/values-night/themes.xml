@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <color name="logo_ink">#F5F5F7</color>
     <color name="app_bg">#0A0B0D</color>
     <color name="app_accent">#3CF2C8</color>
 

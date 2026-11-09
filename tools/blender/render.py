@@ -176,7 +176,8 @@ if SHOT == 'flood_dark':
     # ValueLink flood scene: the real 침수흔적도 (tools/blender/floodmap.py) glowing on the studio floor, water up
     # to the hubs, and the recommended public lot 502 m east (역삼1동문화센터) as a blue pin.
     FLOOR = 16.0
-    bpy.ops.mesh.primitive_plane_add(size=FLOOR, location=(0, 0, 0.004))
+    # the real flood-trace map is optional here (the app shows it in the Value Map); water carries the scene
+    bpy.ops.mesh.primitive_plane_add(size=FLOOR if os.environ.get('FLOODMAP_ON') else 0.001, location=(0, 0, 0.004))
     fl = bpy.context.object
     m = bpy.data.materials.new('floodmap')
     m.use_nodes = True
@@ -202,8 +203,8 @@ if SHOT == 'flood_dark':
     wm = bpy.data.materials.new('water')
     wm.use_nodes = True
     wb = wm.node_tree.nodes['Principled BSDF']
-    wb.inputs['Base Color'].default_value = (0.08, 0.32, 0.72, 1)
-    wb.inputs['Transmission Weight'].default_value = 0.92
+    wb.inputs['Base Color'].default_value = (0.14, 0.40, 0.62, 1)
+    wb.inputs['Transmission Weight'].default_value = 0.88
     wb.inputs['IOR'].default_value = 1.333
     wb.inputs['Roughness'].default_value = 0.2
     nz = wm.node_tree.nodes.new('ShaderNodeTexNoise')
@@ -233,9 +234,9 @@ if SHOT == 'flood_dark':
     px, py = 492 * k, -62 * k
     bpy.ops.mesh.primitive_cylinder_add(radius=0.32, depth=0.01, location=(px, py, 0.01))
     pin = bpy.context.object
-    pin.data.materials.append(mat('pin', (0.04, 0.52, 1.0), 0.3, emit=6.0))
-    bpy.ops.mesh.primitive_cylinder_add(radius=0.025, depth=1.0, location=(px, py, 0.5))
-    bpy.context.object.data.materials.append(mat('pin_stem', (0.04, 0.52, 1.0), 0.3, emit=6.0))
+    pin.data.materials.append(mat('pin', (1, 1, 1), 0.3, emit=4.0))
+    bpy.ops.mesh.primitive_cylinder_add(radius=0.018, depth=1.0, location=(px, py, 0.5))
+    bpy.context.object.data.materials.append(mat('pin_stem', (1, 1, 1), 0.3, emit=4.0))
 
 # ---- in-app scenes rendered for the landing page and the video -------------------------------------------
 PARTS = os.environ.get('PARTS_GLB', os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'web', 'public', '3d', 'parts.glb'))
@@ -289,22 +290,7 @@ if SHOT in ('warning_xray', 'charge_xray'):
             o.hide_render = True
 
 if SHOT == 'tradeup_dark':
-    # the next car: Digital Teal over the baked panel lines, crossed by one soft light band
-    body = bpy.data.objects['body']
-    for m in body.data.materials:
-        nt = m.node_tree
-        b = nt.nodes['Principled BSDF']
-        src = b.inputs['Base Color'].links[0].from_socket if b.inputs['Base Color'].links else None
-        mix = nt.nodes.new('ShaderNodeMix')
-        mix.data_type = 'RGBA'
-        mix.blend_type = 'MULTIPLY'
-        mix.inputs['Factor'].default_value = 1.0
-        mix.inputs[7].default_value = (0.18, 0.42, 0.40, 1)
-        if src:
-            nt.links.new(src, mix.inputs[6])
-        else:
-            mix.inputs[6].default_value = b.inputs['Base Color'].default_value
-        nt.links.new(mix.outputs[2], b.inputs['Base Color'])
+    # the next car: glossy black (render from the black build), crossed by one soft light band
     bpy.ops.mesh.primitive_plane_add(size=1, location=(-0.6, 0, 0.95), rotation=(math.pi / 2, 0, math.pi / 2))
     band = bpy.context.object
     band.scale = (0.22, 2.0, 1)
@@ -326,7 +312,7 @@ if SHOT == 'tradeup_dark':
     band.data.materials.append(bm)
     band.visible_shadow = False
 
-if SHOT == 'passport_light':
+if SHOT.startswith('passport'):
     # 28 sealed days as glass blocks along the car: height = km, blue core = heavy-rain day, amber cap = lamp day
     gl = bpy.data.materials.new('glassblock')
     gl.use_nodes = True
@@ -351,7 +337,7 @@ if SHOT == 'passport_light':
             bpy.ops.mesh.primitive_cube_add(size=1, location=(x, y, h * 0.45))
             core = bpy.context.object
             core.scale = (0.07, 0.07, h * 0.8)
-            core.data.materials.append(mat(f'core{i}', (0.18, 0.56, 1.0) if i != 27 else (1, 1, 1), 0.3, emit=4.0))
+            core.data.materials.append(mat(f'core{i}', (0.56, 0.66, 0.75) if i != 27 else (1, 1, 1), 0.3, emit=3.0 if i != 27 else 6.0))
         if i == 21:
             bpy.ops.mesh.primitive_cube_add(size=1, location=(x, y, h + 0.012))
             cap = bpy.context.object
@@ -378,7 +364,7 @@ def place(az_deg, dist=13.5, h=2.1):
     cyc.rotation_euler = (0, 0, a - math.pi / 2)
 
 shots = {
-    'hero_light': 32, 'hero_dark': 32, 'flood_dark': 40, 'warning_xray': 24, 'charge_xray': 30, 'tradeup_dark': 28, 'passport_light': 60, 'side_light': 90, 'rear_dark': 145, 'xray_dark': 30,
+    'hero_light': 32, 'hero_dark': 32, 'flood_dark': 40, 'warning_xray': 24, 'charge_xray': 30, 'tradeup_dark': 28, 'passport_light': 60, 'passport_dark': 60, 'side_light': 90, 'rear_dark': 145, 'xray_dark': 30,
 }
 if SHOT.startswith('turntable'):
     for f in range(72):

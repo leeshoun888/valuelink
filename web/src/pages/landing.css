@@ -172,6 +172,7 @@
 }
 .lp-story-stage {
   position: sticky;
+  overflow: hidden;
   top: 52px;
   height: calc(100vh - 52px);
   grid-column: 1 / -1;
@@ -497,4 +498,59 @@
   line-height: 1.55;
   color: #6e6e73;
   text-align: center;
+}
+
+/* the business loop: owner -> certified used -> first-car buyer -> next new car (and round again) */
+.lp-cycle {
+  list-style: none;
+  margin: 44px auto 72px;
+  padding: 0;
+  max-width: 1080px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 28px;
+  counter-reset: cyc;
+}
+.lp-cycle li {
+  position: relative;
+  padding: 18px 4px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  text-align: left;
+  counter-increment: cyc;
+}
+.lp-cycle li::before {
+  content: '0' counter(cyc);
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #86868b;
+  margin-bottom: 6px;
+}
+.lp-cycle li:not(:last-child)::after {
+  content: '›';
+  position: absolute;
+  right: 10px;
+  top: 14px;
+  color: #86868b;
+  font-size: 20px;
+}
+.lp-cycle b {
+  display: block;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+.lp-cycle span {
+  display: block;
+  margin-top: 6px;
+  font-size: 15px;
+  color: #a1a1a6;
+  line-height: 1.45;
+}
+@media (max-width: 760px) {
+  .lp-cycle {
+    grid-template-columns: 1fr 1fr;
+  }
+  .lp-cycle li:nth-child(2)::after {
+    display: none;
+  }
 }

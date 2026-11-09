@@ -185,3 +185,37 @@ button {
 .lp .pill.primary:hover {
   background: #fff;
 }
+
+.cv-chip {
+  white-space: nowrap;
+  padding: 6px 14px;
+  border-radius: 99px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1d1d1f;
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+/* pre-rendered event clips over the real-time car (three/Clip.tsx) */
+.cv-clip {
+  position: absolute;
+  aspect-ratio: 16 / 9;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+.cv-clip.on {
+  opacity: 1;
+}
+.cv-live {
+  width: 100%;
+  height: 100%;
+  transition: opacity 0.35s ease;
+}
+.cv-live.hide {
+  opacity: 0;
+}

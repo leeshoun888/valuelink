@@ -15,7 +15,7 @@
 import { Component, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { ContactShadows, Environment, Lightformer, OrbitControls, useGLTF } from '@react-three/drei'
-import { Blocks, FloodFloor, Parts, Sweep, Water, type FloodScene, type Part, type PassportScene } from './Scenes'
+import { Beams, Blocks, FloodFloor, Frost, LockRing, Parts, Rain, Sun, Sweep, Water, type FloodScene, type Part, type PassportScene } from './Scenes'
 import * as THREE from 'three'
 import {
   BELT_Y,
@@ -53,6 +53,14 @@ export interface CarState {
   newCar?: boolean
   /** passport: glass day blocks beside the car */
   passport?: PassportScene | null
+  /** weather around the parked car: 0 none, 1 rain on the way, 2 raining */
+  rain?: number
+  /** a theft-zone lock just happened */
+  locked?: boolean
+  /** icy-road hotspot ahead */
+  frost?: boolean
+  /** hard sun on a parked car */
+  sun?: boolean
 }
 
 export const DEFAULT_CAR: CarState = {
@@ -96,7 +104,7 @@ interface Props {
 
 const GLASS = new THREE.Color('#07090c')
 const WHITE = new THREE.Color('#ffffff')
-const NEXT_TINT = new THREE.Color('#5f9a96')
+const NEXT_TINT = new THREE.Color('#202226') // the next car: glossy black
 const ENV = { light: `${import.meta.env.BASE_URL}3d/studio_light.hdr`, dark: `${import.meta.env.BASE_URL}3d/studio_dark.hdr` }
 const ROOF_GLASS = new THREE.Color('#0b0e12')
 const BLIND = new THREE.Color('#8a8d92')
@@ -367,6 +375,9 @@ function GlbCar({ state, theme }: { state: CarState; theme: 'light' | 'dark' }) 
       for (const mat of mats as THREE.MeshPhysicalMaterial[]) {
         mat.envMapIntensity = 1
         if (mat.name === 'body' || mat.name.startsWith('body_')) {
+          // a satin clear coat: the real-time studio map is soft, and a mirror coat turned its blur into
+          // streaks over the tight rear corners
+          mat.clearcoatRoughness = 0.28
           mat.transparent = true
           bodyMats.push(mat)
         }
@@ -424,7 +435,7 @@ function GlbCar({ state, theme }: { state: CarState; theme: 'light' | 'dark' }) 
     for (const m of parts.bodyMats) {
       m.opacity = 1 - 0.82 * xr.current
       m.depthWrite = xr.current < 0.5
-      // trade-up: the silver car becomes the next one (Digital Teal) behind the light sweep
+      // trade-up: the silver car becomes the next one (glossy black) behind the light sweep
       m.color.copy(WHITE).lerp(NEXT_TINT, nc.current)
     }
   })
@@ -538,7 +549,7 @@ function ChargePort({ state }: { state: CarState }) {
     surfacePoint(-1.62, 0.4, v)
     return v
   }, [])
-  const mat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#0a84ff', transparent: true, opacity: 0, toneMapped: false }), [])
+  const mat = useMemo(() => new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0, toneMapped: false }), [])
   const geo = useMemo(() => new THREE.RingGeometry(0.05, 0.075, 48), [])
   useEffect(() => () => [geo, mat].forEach((d) => d.dispose()), [geo, mat])
   useFrame(({ clock }) => {
@@ -552,8 +563,8 @@ function Rig({ autoRotate, interactive, azimuth, distance, shiftX, shiftY, high 
   useEffect(() => {
     // three-quarter front view; azimuth swings around the car. The flood scene looks down onto the map.
     const a = ((azimuth + 38) * Math.PI) / 180
-    const el = high ? 0.5 : 0.24
-    const d = high ? distance * 1.6 : distance
+    const el = high ? 0.36 : 0.24
+    const d = high ? distance * 1.35 : distance
     camera.position.set(Math.cos(a) * d * Math.cos(el), 0.7 + d * Math.sin(el), Math.sin(a) * d * Math.cos(el))
     camera.lookAt(0, 0.7, 0)
   }, [camera, azimuth, distance, high])
@@ -657,6 +668,11 @@ export function StudioCar({ state, theme = 'light', autoRotate = true, interacti
           <Water flood={state.flood} />
           <Sweep on={Boolean(state.newCar)} />
           <Blocks scene={state.passport} theme={theme} />
+          <Rain level={state.rain ?? 0} theme={theme} />
+          <Beams on={state.headlights} theme={theme} />
+          <LockRing on={Boolean(state.locked)} theme={theme} />
+          <Frost on={Boolean(state.frost)} theme={theme} />
+          <Sun on={Boolean(state.sun)} blind={state.blindClosed} />
         </group>
         <ContactShadows position={[0, 0.001, 0]} opacity={theme === 'dark' ? 0.8 : 0.6} scale={HALF_L * 4.2} blur={2.6} far={2.2} resolution={512} color="#000" />
         {lowPower && <AnimateOnChange state={state} />}

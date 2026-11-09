@@ -1,6 +1,7 @@
 // Landing: an Apple-style product page. One object (the car), big type, scroll-told features: as each
 // feature scrolls by, the sticky 3D car shows it happening (windows close, lamps go out, the pack fills).
 
+import { ClipLayer, type ClipName } from '../three/Clip'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { Logo } from '../ui/icons'
 import { READ_CALLS } from '../engine/sdkTrace'
@@ -42,9 +43,10 @@ const FLOOD_TILES = (() => {
   return t
 })()
 
-const STEPS: { k: string; title: string; body: string; sdk: string; car: (phase: number) => Partial<CarState> }[] = [
+const STEPS: { k: string; title: string; body: string; sdk: string; clip?: ClipName; car: (phase: number) => Partial<CarState> }[] = [
   {
     k: 'flood',
+    clip: 'flood',
     title: '물이 차기 전에,\n차가 먼저 피합니다.',
     body: '호우경보가 내리면, 예전에 물에 잠긴 자리인지 차가 압니다. 그리고 가장 가까운 안전한 주차장으로 안내합니다.',
     sdk: '기상청 특보 × 침수흔적도 → NaviHelper.SearchPlace',
@@ -70,6 +72,7 @@ const STEPS: { k: string; title: string; body: string; sdk: string; car: (phase:
   },
   {
     k: 'tradeup',
+    clip: 'tradeup',
     title: '가장 좋은 교체 시점,\n차가 먼저 말합니다.',
     body: '인증중고차 매입 기준이 끝나기 전, 보조금이 남아 있을 때. 실 부담 1,550만원.',
     sdk: '차량 여권 → 인증중고차 · 신차 · 현대캐피탈',
@@ -77,7 +80,50 @@ const STEPS: { k: string; title: string; body: string; sdk: string; car: (phase:
   },
 ]
 
-function Story() {
+const DAILY: typeof STEPS = [
+  {
+    k: 'rain',
+    clip: 'rain',
+    title: '비 오기 30분 전,\n창문이 먼저 닫힙니다.',
+    body: '기상청 예보로 비 소식을 먼저 받습니다.',
+    sdk: 'Window.setWindowPosition',
+    car: (p) => ({ rain: p >= 1 ? 2 : 1, windowsOpen: p >= 1 ? 0 : 2 }),
+  },
+  {
+    k: 'lights',
+    clip: 'lights',
+    title: '켜두고 내린 전조등,\n차가 끕니다.',
+    body: '12V 배터리 방전을 막습니다.',
+    sdk: 'Light.setLowBeamLightSwitch',
+    car: (p) => ({ headlights: p % 2 === 0 }),
+  },
+  {
+    k: 'lock',
+    clip: 'lock',
+    title: '절도가 잦은 골목이면,\n문을 잠급니다.',
+    body: '경찰청 범죄주의구간 위에 세웠을 때.',
+    sdk: 'Door.setDoorLock',
+    car: (p) => ({ locked: p % 2 === 1 }),
+  },
+  {
+    k: 'frost',
+    clip: 'frost',
+    title: '결빙 사고다발지 앞,\n먼저 알립니다.',
+    body: '도로교통공단 데이터로 600m 전에.',
+    sdk: '도로교통공단 결빙 사고다발지역',
+    car: () => ({ frost: true }),
+  },
+  {
+    k: 'sun',
+    clip: 'sun',
+    title: '한낮의 햇볕엔,\n블라인드를 닫습니다.',
+    body: '실내 소재의 변색을 늦춥니다.',
+    sdk: 'Window.moveWindowBlind',
+    car: (p) => ({ sun: true, blindClosed: p >= 1 }),
+  },
+]
+
+function Story({ steps = STEPS, id = 'guard', eyebrow = '지킨다' }: { steps?: typeof STEPS; id?: string; eyebrow?: string }) {
   const [step, setStep] = useState(0)
   const refs = useRef<(HTMLDivElement | null)[]>([])
   useEffect(() => {
@@ -99,21 +145,25 @@ function Story() {
     const id = window.setInterval(() => setPhase(++n), 2600)
     return () => clearInterval(id)
   }, [step])
-  const s = STEPS[step]
+  const s = steps[step]
   const car: CarState = { ...DEFAULT_CAR, sohPct: 98.1, socPct: 72, ...s.car(phase) }
+  const [clipOn, setClipOn] = useState(false)
   return (
-    <section className="lp-story" id="guard">
+    <section className="lp-story" id={id}>
       <div className="lp-story-stage">
-        <Suspense fallback={null}>
-          <StudioCar state={car} theme="dark" autoRotate interactive={false} distance={11} shiftX={0.12} shiftY={0.06} style={{ width: '100%', height: '100%' }} />
-        </Suspense>
+        <div className={`cv-live ${clipOn ? 'hide' : ''}`}>
+          <Suspense fallback={null}>
+            <StudioCar state={car} theme="dark" autoRotate interactive={false} distance={11} shiftX={0.12} shiftY={0.06} style={{ width: '100%', height: '100%' }} />
+          </Suspense>
+        </div>
+        <ClipLayer clip={s.clip ?? null} theme="dark" loop framing={{ distance: 11, shiftX: 0.12, shiftY: 0.06 }} onPlaying={setClipOn} />
         <div className="lp-story-sdk">
           <code>{s.sdk}</code>
         </div>
       </div>
       <div className="lp-story-steps">
-        <p className="lp-eyebrow">지킨다</p>
-        {STEPS.map((st, i) => (
+        <p className="lp-eyebrow">{eyebrow}</p>
+        {steps.map((st, i) => (
           <div key={st.k} ref={(el) => void (refs.current[i] = el)} data-i={i} className={`lp-step ${i === step ? 'on' : ''}`}>
             <h3>
               {st.title.split('\n').map((l, k) => (
@@ -192,7 +242,9 @@ export default function Landing() {
         </p>
         <h1 data-reveal>내 차, 자산이 되다.</h1>
         <p className="lp-lede" data-reveal>
-          당신의 현대차를 자산으로 관리하는 가장 스마트한 방법. 차가 스스로 가치를 지키고, 증명하고, 다음으로 잇습니다.
+          내가 관리하지 않아도, 스스로를 관리하는 자산.
+          <br />
+          쓰기만 해도 차 값이 지켜집니다.
         </p>
         <div className="lp-cta" data-reveal>
           <a className="pill primary" href="#/car">
@@ -259,22 +311,11 @@ export default function Landing() {
           공공데이터를 차의 신호에 겹칩니다. 정확한 위치는 차 밖으로 나가지 않습니다.
         </p>
         <div className="lp-city-visual" data-reveal>
-          <Render name="flood_dark" alt="실제 침수흔적도 위에 선 아이오닉 5, 바퀴 높이까지 찬 물과 안전한 공영주차장 표시" className="lp-city-img" />
-        </div>
-        <div className="lp-tiles">
-          {[
-            ['비 오기 30분 전', '열린 창문을 닫습니다.'],
-            ['절도가 잦은 골목', '문을 잠급니다.'],
-            ['결빙 사고다발지 앞', '속도를 줄이라고 알립니다.'],
-            ['배터리가 부족할 때', '빈 E-pit으로 안내합니다.'],
-          ].map(([t, d]) => (
-            <div key={t} className="lp-tile" data-reveal>
-              <h4>{t}</h4>
-              <p>{d}</p>
-            </div>
-          ))}
+          <Render name="flood_dark" alt="바퀴 높이까지 찬 물 위의 아이오닉 5와 안전한 주차장 방향 표시" className="lp-city-img" />
         </div>
       </section>
+
+      <Story steps={DAILY} id="daily" eyebrow="그리고 매일, 조용히" />
 
       <section className="lp-prove" id="prove">
         <p className="lp-eyebrow" data-reveal>
@@ -296,6 +337,22 @@ export default function Landing() {
           잇는다
         </p>
         <h2 data-reveal>현대차그룹으로 돌아오는 가치.</h2>
+        <p className="lp-sub" data-reveal>
+          관리 잘 된 현대차가, 다음 현대차 고객을 만듭니다.
+        </p>
+        <ol className="lp-cycle" data-reveal>
+          {[
+            ['차주', '쓰기만 해도 차 값이 지켜집니다.'],
+            ['인증중고차', '여권으로 증명된 매물이 됩니다.'],
+            ['첫 차 고객', '관리 잘 된 현대차로 입문합니다.'],
+            ['다음 차', '가장 좋은 때, 현대차 신차로.'],
+          ].map(([t, d]) => (
+            <li key={t}>
+              <b>{t}</b>
+              <span>{d}</span>
+            </li>
+          ))}
+        </ol>
 
         <div className="lp-tiles">
           {[
@@ -338,6 +395,9 @@ export default function Landing() {
       <section className="lp-final">
         <Render name="side_light" alt="측면에서 본 아이오닉 5" className="lp-final-img" />
         <h2 data-reveal>내 차, 자산이 되다.</h2>
+        <p className="lp-sub" data-reveal>
+          관리 가능한 차량 자산의 표준, 현대차.
+        </p>
         <div className="lp-cta" data-reveal>
           <a className="pill primary" href="#/car">
             차량 앱 실행하기

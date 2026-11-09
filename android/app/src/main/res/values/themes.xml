@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Pleos background_primary (basic_50): light #F7F8FA; the night palette lives in values-night. -->
+    <color name="logo_ink">#1D1D1F</color>
     <color name="app_bg">#F7F8FA</color>
     <color name="app_accent">#00A389</color>
 

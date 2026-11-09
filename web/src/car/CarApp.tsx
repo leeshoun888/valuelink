@@ -13,6 +13,7 @@ import { ago, clock } from '../ui/format'
 import { Logo } from '../ui/icons'
 import { isNative } from '../engine/native'
 import type { CarState } from '../three/StudioCar'
+import { ClipLayer, clipFor, type ClipName } from '../three/Clip'
 import './car.css'
 
 const StudioCar = lazy(() => import('../three/StudioCar'))
@@ -68,7 +69,14 @@ export function carStateOf(s: Snapshot, xray = false, sheet: SheetKind | null = 
   const driving = s.mode === 'driving'
   const part = driving ? null : (s.warnings.map((w) => PART_OF[w.type]).find(Boolean) ?? null)
   const w = s.warnings[0]
+  const wx = s.pub.feed.weather
+  const recent = (kind: string, ms: number) => s.ledger.some((e) => e.kind === kind && s.sig.t - e.t >= 0 && s.sig.t - e.t < ms)
+  const hour = new Date(s.sig.t).getHours()
   return {
+    rain: driving ? 0 : wx.pty > 0 || s.sig.raining ? 2 : wx.rainInMin !== undefined && wx.rainInMin <= 60 ? 1 : 0,
+    locked: recent('theftZone', 20_000),
+    frost: recent('accidentZone', 90_000) && s.ledger.find((e) => e.kind === 'accidentZone')?.title.includes('결빙'),
+    sun: !driving && hour >= 10 && hour <= 17 && ((s.sig.outsideTempC ?? 20) >= 28 || wx.uv >= 8),
     part,
     partLabel: part && w ? `${w.name} · 방치하면 차 값 −2%` : undefined,
     flood:
@@ -87,7 +95,7 @@ export function carStateOf(s: Snapshot, xray = false, sheet: SheetKind | null = 
     charging: s.mode === 'charging' && s.sig.chargeState === 'charging',
     socPct: s.sig.socPct ?? 70,
     chargeLimitPct: s.sig.chargeLimitPct ?? 100,
-    blindClosed: Boolean(s.sig.blindClosed),
+    blindClosed: Boolean(s.sig.blindClosed) || recent('sunBlind', 6 * 3600e3),
     sohPct: s.battery.soh,
     xray: xray || s.mode === 'charging',
     tyreWarning: s.warnings.some((w) => w.type === 'TPMS'),
@@ -160,8 +168,21 @@ function Scene({ snap, theme, portrait }: { snap: Snapshot; theme: 'light' | 'da
   // the asset report opens as a side panel: the car and its passport blocks stay on the left
   const report = sheet === 'trade' && !portrait
   const driving = snap.mode === 'driving'
+  // fixed-look events play their pre-rendered clip once, over the real-time car
+  const prev = useRef(car)
+  const [clip, setClip] = useState<ClipName | null>(null)
+  const [clipOn, setClipOn] = useState(false)
+  useEffect(() => {
+    const c = driving ? null : clipFor(prev.current, car)
+    prev.current = car
+    if (c) setClip(c)
+  }, [car, driving])
+  const distance = portrait ? 17 : report ? 22 : 15.5
+  const shiftX = portrait ? 0 : driving ? 0.16 : report ? -0.25 : -0.13
+  const shiftY = portrait ? 0.02 : 0.13
   return (
     <div className="jg-scene">
+      <div className={`cv-live ${clipOn ? 'hide' : ''}`}>
       <Suspense fallback={null}>
         <StudioCar
           state={car}
@@ -171,12 +192,14 @@ function Scene({ snap, theme, portrait }: { snap: Snapshot; theme: 'light' | 'da
           autoRotate={!driving && !report}
           interactive={!driving}
           azimuth={driving ? 14 : report ? 34 : 0}
-          distance={portrait ? 17 : report ? 22 : 15.5}
-          shiftX={portrait ? 0 : driving ? 0.16 : report ? -0.25 : -0.13}
-          shiftY={portrait ? 0.02 : 0.13}
+          distance={distance}
+          shiftX={shiftX}
+          shiftY={shiftY}
           style={{ width: '100%', height: '100%' }}
         />
       </Suspense>
+      </div>
+      <ClipLayer clip={clip} theme={theme} framing={{ distance, shiftX, shiftY }} onPlaying={setClipOn} onEnded={() => setClip(null)} />
     </div>
   )
 }

@@ -7,7 +7,7 @@ const path = require('node:path')
   await p.setViewport({ width: 1600, height: 1200, deviceScaleFactor: 2 })
   await p.goto('file://' + path.resolve(__dirname, '../docs/diagrams.html'), { waitUntil: 'load' })
   await new Promise((r) => setTimeout(r, 800))
-  for (const id of ['loop', 'arch']) {
+  for (const id of ['loop', 'arch', 'flywheel']) {
     const el = await p.$('#' + id)
     await el.screenshot({ path: path.resolve(__dirname, `../docs/img/${id}.png`) })
     console.log('diagram', id)

@@ -123,7 +123,7 @@ export default function PassportPage() {
             {snap.pub.feed.recalls.length ? `리콜 ${snap.pub.feed.recalls.length}건 · ${snap.pub.feed.recalls.every((r) => r.fixedAt) ? '모두 조치 완료' : '미조치 있음'}` : '해당 리콜 없음'}
           </b>
           <span>
-            {snap.pub.feed.recalls.map((r) => r.title).join(', ')} (국토교통부 리콜정보) · 배터리 이력관리 {snap.pub.feed.batteryRegistry ? '등록' : '미확인'} (2025.2.17 시행)
+            {snap.pub.feed.recalls.map((r) => r.title).join(', ')} (시연 데이터, 출시 시 국토교통부 리콜정보 API 연동) · 배터리 이력관리 {snap.pub.feed.batteryRegistry ? '등록' : '미확인'} (2025.2.17 시행)
           </span>
         </div>
         <div className="pp-card">

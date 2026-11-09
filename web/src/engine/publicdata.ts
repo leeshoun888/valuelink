@@ -155,7 +155,7 @@ export const DATASETS = [
   { key: 'parking', name: '전국주차장정보표준데이터 + 건축물대장 (옥내·옥외 주차)', agency: '국토교통부·지자체', use: '공영주차장 위치·옥내 여부', access: '파일·Open API' },
   { key: 'ev-charger', name: '전기자동차 충전소 정보', agency: '한국환경공단', use: '충전기 실시간 상태', access: 'Open API · 공공누리 1유형' },
   { key: 'ev-subsidy', name: '전기차 구매보조금 지자체 공고·접수 현황', agency: '환경부 무공해차 통합누리집', use: '보조금·잔여 대수', access: '웹 공시 (서버 수집)' },
-  { key: 'recall', name: '자동차 리콜정보 API', agency: '국토교통부·한국교통안전공단', use: '차대번호별 리콜 대상', access: 'Open API · 사전협의 후 연동' },
+  { key: 'recall', name: '자동차 리콜정보 API', agency: '국토교통부·한국교통안전공단', use: '차대번호별 리콜 대상', access: '출시 시 연동 (베타 API, 사전협의)' },
   { key: 'battery', name: '전기차 배터리 이력관리제 (2025.2.17 시행)', agency: '국토교통부', use: '배터리 식별번호·정비 이력', access: '자동차등록원부 연계 (제휴)' },
 ] as const
 

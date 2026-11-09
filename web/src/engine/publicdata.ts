@@ -369,6 +369,10 @@ export class LivePublicSource implements PublicSource {
    */
   private captured: boolean
   readonly mode: 'live' | 'snapshot'
+  /** captured builds: weather and warnings come from the scenario source (demo menu / simulator) */
+  get scenario(): ScenarioPublicSource | null {
+    return this.captured ? this.fallback : null
+  }
   constructor(proxy: string, fallback = new ScenarioPublicSource(), opts: { captured?: boolean } = {}) {
     this.proxy = proxy.replace(/\/$/, '')
     this.fallback = fallback

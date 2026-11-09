@@ -199,7 +199,7 @@ export class Runtime {
   /** Demo controls for the public-data scenario (in-car menu, console). */
   publicScenario(kind: 'rainSoon' | 'heavyRain' | 'hail' | 'clear') {
     const t = this.bus.read().t
-    if (this.pub instanceof LivePublicSource) {
+    if (this.pub instanceof LivePublicSource && !this.pub.scenario) {
       // live data stays real; the demo only layers a forecast / warning on top (labelled in the UI)
       const d = this.pub
       if (kind === 'rainSoon') d.demo = { pty: 0, rainInMin: 30, pop: 80 }
@@ -209,8 +209,8 @@ export class Runtime {
       this.feedAt = -Infinity
       return
     }
-    const src = this.pub as ScenarioPublicSource
-    if (!('setWeather' in src)) return
+    const src = this.pub instanceof LivePublicSource ? this.pub.scenario! : (this.pub as ScenarioPublicSource)
+    if (!src || !('setWeather' in src)) return
     if (kind === 'rainSoon') src.setWeather({ pty: 0, rainInMin: 30, pop: 80 })
     if (kind === 'heavyRain') {
       src.setWeather({ pty: 1, rainInMin: undefined, pop: 100, rain1hMm: 45 })

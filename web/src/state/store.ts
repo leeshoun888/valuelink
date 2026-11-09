@@ -6,9 +6,19 @@ import { voice } from '../voice/voice'
 import { NativeVehicle, isNative, setGleoHandler } from '../engine/native'
 import { LivePublicSource, ScenarioPublicSource } from '../engine/publicdata'
 
-/** Public-data proxy (tools/publicdata-proxy); unset in the judging build, which uses the snapshot. */
-const PROXY = (import.meta.env.VITE_PUBLIC_PROXY as string | undefined) ?? ''
-const publicSource = (fallback?: ScenarioPublicSource) => (PROXY ? new LivePublicSource(PROXY, fallback) : fallback ?? new ScenarioPublicSource())
+/**
+ * Live public data: in the APK through the native relay (same origin, /pub/ → tools/publicdata-proxy) when the
+ * build has a proxy; on the web with VITE_PUBLIC_PROXY and ?live in the URL (the scripted day otherwise keeps
+ * its scenario weather). Without either, the bundled snapshot.
+ */
+function publicSource(fallback = new ScenarioPublicSource()) {
+  const pub = new URL('pub', location.href.split('#')[0]).href
+  if (isNative() && window.CarValueNative?.publicData?.()) return new LivePublicSource(pub, fallback)
+  const proxy = (import.meta.env.VITE_PUBLIC_PROXY as string | undefined) ?? ''
+  if (!isNative() && proxy && /[?&]live\b/.test(location.search + location.hash)) return new LivePublicSource(proxy, fallback)
+  // real data captured around Gangnam (tools/publicdata-capture.mjs); weather and warnings follow the scenario
+  return new LivePublicSource(pub, fallback, { captured: true })
+}
 
 export type SheetKind = 'value' | 'trade' | 'tradeUp' | 'map'
 

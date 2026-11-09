@@ -48,7 +48,7 @@ export interface Zone {
   source: string
 }
 
-export type LotKind = '지하' | '지상' | '주차빌딩' | '노상'
+export type LotKind = '지하' | '지상' | '주차빌딩' | '노상' | '건물'
 
 export interface Lot {
   id: string
@@ -100,6 +100,34 @@ export interface PublicFeed {
   batteryRegistry?: { id: string; registeredAt: number }
   /** where each piece came from, for the UI and the judges */
   mode: 'live' | 'snapshot'
+  /** EV chargers nearby with live availability (한국환경공단) */
+  chargers?: Charger[]
+  /** map layers drawn under the Value Map (생활안전지도 WMS tiles through the proxy) */
+  overlays?: Overlay[]
+  /** raster layers sampled at a point (flood trace, crime density); undefined while not loaded */
+  sample?: (kind: 'flood' | 'theft', p: { lat: number; lng: number }) => Zone | null | undefined
+}
+
+export interface Charger {
+  id: string
+  name: string
+  busi: string
+  lat: number
+  lng: number
+  maxKw: number
+  avail: number
+  total: number
+  fast: boolean
+  epit: boolean
+}
+
+export interface Overlay {
+  layer: 'flood' | 'theft'
+  url: string
+  west: number
+  south: number
+  east: number
+  north: number
 }
 
 export interface PublicCall {
@@ -172,10 +200,12 @@ export const at = (pos: [number, number]) => ({ lng: pos[0], lat: pos[1] })
 
 /** Places of "밸류링크의 하루" (Seoul Gangnam). */
 export const PLACES = {
-  office: [127.0286, 37.4972] as [number, number],
-  garage: [127.0331, 37.4996] as [number, number],
+  // inside the real 침수흔적도 polygon south of Gangnam Station
+  office: [127.0276, 37.4959] as [number, number],
+  // 역삼1동문화센터 공영주차장 (전국주차장정보표준데이터, 공영 노외 118면), outside the flood trace
+  garage: [127.0332497, 37.4953545] as [number, number],
   service: [127.0405, 37.5045] as [number, number],
-  home: [127.0592, 37.5121] as [number, number],
+  home: [127.0622, 37.5081] as [number, number],
   school: [127.0365, 37.5009] as [number, number],
 }
 
@@ -292,89 +322,319 @@ export class ScenarioPublicSource implements PublicSource {
   }
 }
 
-// ---- live source (proxy holds the data.go.kr service key; the car sends a grid cell only) ------------------
+// ---- live source (proxy holds the keys; the car sends a grid cell, a ~1 km tile index or a district code) ----
+
+import { regionOf, regionsNear, type Region } from './region'
+
+export const TILE_DEG = 0.01
+const TILE_PX = 512
+const LAND_ALERTS: AlertKind[] = ['호우경보', '호우주의보', '태풍경보', '대설주의보', '폭염경보', '한파주의보']
+
+interface Raster {
+  data: Uint8ClampedArray
+  tx: number
+  ty: number
+}
+
+async function decodePng(url: string): Promise<Uint8ClampedArray> {
+  const blob = await (await fetch(url)).blob()
+  const bmp = await createImageBitmap(blob)
+  const c = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(TILE_PX, TILE_PX) : Object.assign(document.createElement('canvas'), { width: TILE_PX, height: TILE_PX })
+  const g = c.getContext('2d') as CanvasRenderingContext2D
+  g.drawImage(bmp, 0, 0, TILE_PX, TILE_PX)
+  return g.getImageData(0, 0, TILE_PX, TILE_PX).data
+}
 
 /**
- * Live public data through the ValueLink proxy (tools/publicdata-proxy). Dynamic data is refreshed every 10 min
- * per grid cell; the static layers still come from the regional pack. Falls back to the snapshot on any error.
+ * Live public data through the ValueLink proxy (tools/publicdata-proxy). Every request is keyed by something
+ * coarse: KMA grid cell for weather, ~1 km tile for the flood / crime layers, district code for chargers,
+ * parking and icing hotspots. The engine reads synchronously; refreshes run in the background.
  */
 export class LivePublicSource implements PublicSource {
-  readonly mode = 'live' as const
   calls: PublicCall[] = []
-  private cache = new Map<string, { at: number; weather: Weather; alerts: Alert[] }>()
-  private pending = new Set<string>()
   private proxy: string
   private fallback: ScenarioPublicSource
-  constructor(proxy: string, fallback = new ScenarioPublicSource()) {
-    this.proxy = proxy
+  private wx = new Map<string, { at: number; weather: Weather; alerts: Alert[] }>()
+  private uv = new Map<string, { at: number; uv: number }>()
+  private poi = new Map<string, { at: number; lots: Lot[]; chargers: Charger[]; zones: Zone[] }>()
+  private tiles = new Map<string, Raster | 'pending' | 'error'>()
+  private pending = new Set<string>()
+  private failures = 0
+  /** demo overlay: the in-car menu can still inject a heavy-rain warning on top of live data */
+  demo: Partial<Weather> & { alert?: AlertKind | null } = {}
+
+  /**
+   * captured: the same real data captured to static files (tools/publicdata-capture.mjs) for builds without the
+   * proxy. Map layers, parking, chargers and icing hotspots are real; weather and warnings follow the scenario.
+   */
+  private captured: boolean
+  readonly mode: 'live' | 'snapshot'
+  constructor(proxy: string, fallback = new ScenarioPublicSource(), opts: { captured?: boolean } = {}) {
+    this.proxy = proxy.replace(/\/$/, '')
     this.fallback = fallback
+    this.captured = Boolean(opts.captured)
+    this.mode = this.captured ? 'snapshot' : 'live'
   }
 
   feed(pos: [number, number] | undefined, t: number): PublicFeed {
+    // proxy unreachable (judging emulator without the proxy): behave exactly like the snapshot build
+    if (!this.captured && this.failures >= 2 && this.wx.size === 0) {
+      const f = this.fallback.feed(pos, t)
+      if (this.failures < 50 && Date.now() % 60_000 < 1_000) this.failures = 1 // retry about once a minute
+      return f
+    }
+    const here = pos ?? PLACES.office
+    const lat = here[1]
+    const lng = here[0]
+    const grid = kmaGrid(lat, lng)
+    const region = regionOf(lat, lng)
+    const gk = `${grid.nx},${grid.ny}`
+    const wx = this.captured ? undefined : this.wx.get(gk)
+    if (!this.captured && (!wx || Date.now() - wx.at > 10 * 60e3)) this.once(`wx${gk}`, () => this.loadWeather(gk, grid, region))
+    let uv = 3
+    let poi = { lots: [] as Lot[], chargers: [] as Charger[], zones: [] as Zone[] }
+    if (region && !this.captured) {
+      const u = this.uv.get(region.area)
+      if (!u || Date.now() - u.at > 3600e3) this.once(`uv${region.area}`, () => this.loadUv(region))
+      if (u) uv = u.uv
+    }
+    for (const r of regionsNear(lat, lng, 2)) {
+      const p = this.poi.get(r.zscode)
+      if (!p || (!this.captured && Date.now() - p.at > 3 * 60e3)) this.once(`poi${r.zscode}`, () => this.loadPoi(r))
+      if (p) poi = { lots: [...poi.lots, ...p.lots], chargers: [...poi.chargers, ...p.chargers], zones: [...poi.zones, ...p.zones] }
+    }
+    // flood / crime tiles covering ±1.3 km
+    const overlays: Overlay[] = []
+    const span = 0.013
+    for (let tx = Math.floor((lng - span) / TILE_DEG); tx <= Math.floor((lng + span) / TILE_DEG); tx++)
+      for (let ty = Math.floor((lat - span) / TILE_DEG); ty <= Math.floor((lat + span) / TILE_DEG); ty++)
+        for (const layer of ['flood', 'theft'] as const) {
+          const k = `${layer}${tx},${ty}`
+          if (!this.tiles.has(k)) this.once(k, () => this.loadTile(layer, tx, ty))
+          overlays.push({ layer, url: this.tileUrl(layer, tx, ty), west: tx * TILE_DEG, south: ty * TILE_DEG, east: (tx + 1) * TILE_DEG, north: (ty + 1) * TILE_DEG })
+        }
     const base = this.fallback.feed(pos, t)
-    const key = `${base.grid.nx},${base.grid.ny}`
-    const hit = this.cache.get(key)
-    if (!hit || Date.now() - hit.at > 10 * 60_000) void this.refresh(key, base.grid)
-    return hit ? { ...base, weather: hit.weather, alerts: hit.alerts, mode: 'live' } : base
-  }
-
-  private async refresh(key: string, grid: { nx: number; ny: number }) {
-    if (this.pending.has(key)) return
-    this.pending.add(key)
-    try {
-      const [fc, wr] = await Promise.all([
-        fetch(`${this.proxy}/kma/ultra?nx=${grid.nx}&ny=${grid.ny}`).then((r) => r.json()),
-        fetch(`${this.proxy}/kma/warnings?nx=${grid.nx}&ny=${grid.ny}`).then((r) => r.json()),
-      ])
-      const weather = parseUltraShort(fc)
-      const alerts = parseWarnings(wr)
-      this.cache.set(key, { at: Date.now(), weather, alerts })
-      this.calls.unshift({ t: Date.now(), api: '기상청 초단기예보', query: `nx=${grid.nx} ny=${grid.ny}`, result: `PTY ${weather.pty} · POP ${weather.pop}%` })
-    } catch {
-      /* keep the snapshot */
-    } finally {
-      this.pending.delete(key)
+    const weather = this.captured ? base.weather : { ...(wx?.weather ?? base.weather), uv, ...this.demoWeather() }
+    const alerts = this.captured ? base.alerts : this.demo.alert ? [{ kind: this.demo.alert, area: region?.name ?? '현재 지역', issuedAt: t }] : wx?.alerts ?? []
+    return {
+      ...base,
+      at: t,
+      grid,
+      region: region?.name ?? '서울 밖 (격자·지도 레이어만)',
+      weather,
+      alerts,
+      zones: poi.zones,
+      lots: poi.lots,
+      chargers: poi.chargers,
+      overlays,
+      sample: (kind, p) => this.sample(kind, p),
+      mode: this.mode,
     }
   }
+
+  private demoWeather(): Partial<Weather> {
+    const { alert: _a, ...w } = this.demo
+    return w
+  }
+
+  private tileUrl(layer: 'flood' | 'theft', tx: number, ty: number) {
+    const l = layer === 'theft' ? 'crime' : 'flood'
+    return this.captured ? `${this.proxy}/tiles/${l}_${tx}_${ty}.png` : `${this.proxy}/safemap/tile?layer=${l}&tx=${tx}&ty=${ty}`
+  }
+
+  private once(key: string, fn: () => Promise<void>) {
+    if (this.pending.has(key)) return
+    this.pending.add(key)
+    void fn()
+      .then(() => (this.failures = 0))
+      .catch((e) => {
+        this.failures++
+        this.log('proxy', key, `오류 ${String(e).slice(0, 60)}`)
+      })
+      .finally(() => this.pending.delete(key))
+  }
+
+  private log(api: string, query: string, result: string) {
+    this.calls.unshift({ t: Date.now(), api, query, result })
+    this.calls = this.calls.slice(0, 30)
+  }
+
+  private async get(path: string) {
+    const r = await fetch(`${this.proxy}${path}`)
+    if (!r.ok) throw new Error(`${r.status}`)
+    return r.json()
+  }
+
+  private async loadWeather(gk: string, grid: { nx: number; ny: number }, region: Region | null) {
+    const [ncst, ultra, warn] = await Promise.all([
+      this.get(`/kma/ncst?nx=${grid.nx}&ny=${grid.ny}`),
+      this.get(`/kma/ultra?nx=${grid.nx}&ny=${grid.ny}`),
+      this.get(`/kma/warnings?stn=${region?.stn ?? 109}`),
+    ])
+    const weather = parseWeather(ncst, ultra)
+    const alerts = parseWarnings(warn).filter((a) => LAND_ALERTS.includes(a.kind))
+    this.wx.set(gk, { at: Date.now(), weather, alerts })
+    this.log('기상청 초단기실황·예보', `격자 ${gk}`, `PTY ${weather.pty} · RN1 ${weather.rain1hMm}mm · ${weather.tempC}℃${weather.rainInMin !== undefined ? ` · ${weather.rainInMin}분 뒤 강수` : ''}`)
+    const titles = (items(warn) as { title?: string }[]).map((x) => x.title ?? '')
+    this.log('기상청 기상특보', `지점 ${region?.stn ?? 109}`, alerts.length ? alerts.map((a) => a.kind).join(', ') : `육상 특보 없음${titles[0] ? ` (최근: ${titles[0].replace(/^\[특보\]\s*/, '').slice(0, 40)})` : ''}`)
+  }
+
+  private async loadUv(region: Region) {
+    const j = await this.get(`/kma/uv?area=${region.area}`)
+    const it = items(j)[0] as Record<string, string> | undefined
+    const uv = Number(it?.h0 ?? it?.h3 ?? 0) || 0
+    this.uv.set(region.area, { at: Date.now(), uv })
+    this.log('기상청 생활기상지수', region.name, `자외선지수 ${uv}`)
+  }
+
+  private async loadPoi(region: Region) {
+    type Park = { id: string; name: string; se: string; type: string; spaces: number; lat: number; lng: number }
+    type Freeze = { id: string; name: string; count: number; injured: number; lat: number; lng: number; year: number }
+    let ev: Charger[]
+    let parking: Park[]
+    let freezing: Freeze[]
+    if (this.captured) {
+      const r = await fetch(`${this.proxy}/poi/${region.zscode}.json`)
+      const isJson = r.ok && (r.headers.get('content-type') ?? '').includes('json')
+      const j = isJson ? ((await r.json()) as { ev: Charger[]; parking: Park[]; freezing: Freeze[] }) : { ev: [], parking: [], freezing: [] }
+      ;({ ev, parking, freezing } = j)
+    } else {
+      ;[ev, parking, freezing] = await Promise.all([
+        this.get(`/ev?zscode=${region.zscode}`) as Promise<Charger[]>,
+        this.get(`/parking?inst=${encodeURIComponent(region.inst)}`) as Promise<Park[]>,
+        this.get(`/koroad/freezing?sido=${region.sido}&gugun=${region.gugun}`) as Promise<Freeze[]>,
+      ])
+    }
+    const lots: Lot[] = parking.map((p) => ({
+      id: p.id,
+      name: p.name,
+      lat: p.lat,
+      lng: p.lng,
+      kind: p.type === '부설' ? '건물' : p.type === '노상' ? '노상' : '지상',
+      level: `${p.se} ${p.type} · ${p.spaces}면`,
+      covered: p.type === '부설',
+      public: p.se === '공영',
+      evChargers: 0,
+    }))
+    const zones: Zone[] = freezing.map((f) => ({
+      id: f.id,
+      kind: 'accident',
+      lat: f.lat,
+      lng: f.lng,
+      radiusM: 160,
+      label: '결빙 사고다발지',
+      detail: `${f.name.replace(/^서울 \S+ /, '')} · ${f.year}년 결빙 사고 ${f.count}건`,
+      source: '도로교통공단 결빙 교통사고 다발지역',
+    }))
+    this.poi.set(region.zscode, { at: Date.now(), lots, chargers: ev, zones })
+    const epit = ev.filter((c) => c.epit)
+    if (this.captured) return
+    this.log('한국환경공단 충전소 정보', region.name, `충전소 ${ev.length} · E-pit ${epit.length} (빈 충전기 ${epit.reduce((a, c) => a + c.avail, 0)})`)
+    this.log('전국주차장정보표준데이터', region.name, `주차장 ${lots.length} (공영 ${lots.filter((l) => l.public).length})`)
+    this.log('도로교통공단 결빙 사고다발지역', region.name, `${zones.length}곳`)
+  }
+
+  private async loadTile(layer: 'flood' | 'theft', tx: number, ty: number) {
+    const k = `${layer}${tx},${ty}`
+    this.tiles.set(k, 'pending')
+    try {
+      const data = await decodePng(this.tileUrl(layer, tx, ty))
+      this.tiles.set(k, { data, tx, ty })
+      if (this.captured) return
+      let n = 0
+      for (let i = 3; i < data.length; i += 4 * 16) if (data[i] > 40) n++
+      this.log(layer === 'flood' ? '행정안전부 침수흔적도 WMS' : '생활안전지도 범죄주의구간(절도) WMS', `타일 ${tx},${ty}`, `표시 영역 ${((100 * n) / (data.length / 64)).toFixed(1)}%`)
+    } catch {
+      this.tiles.set(k, 'error')
+    }
+  }
+
+  /** Flood: any feature within ~10 m. Theft: red-weighted density above a threshold within ~20 m. */
+  private sample(kind: 'flood' | 'theft', p: { lat: number; lng: number }): Zone | null | undefined {
+    const tx = Math.floor(p.lng / TILE_DEG)
+    const ty = Math.floor(p.lat / TILE_DEG)
+    const r = this.tiles.get(`${kind}${tx},${ty}`)
+    if (!r || typeof r === 'string') return undefined
+    const px = Math.floor(((p.lng - tx * TILE_DEG) / TILE_DEG) * TILE_PX)
+    const py = Math.floor((1 - (p.lat - ty * TILE_DEG) / TILE_DEG) * TILE_PX)
+    const rad = kind === 'flood' ? 5 : 10
+    let hit = 0
+    let peak = 0
+    for (let dy = -rad; dy <= rad; dy++)
+      for (let dx = -rad; dx <= rad; dx++) {
+        const x = px + dx
+        const y = py + dy
+        if (x < 0 || y < 0 || x >= TILE_PX || y >= TILE_PX) continue
+        const i = (y * TILE_PX + x) * 4
+        const a = r.data[i + 3] / 255
+        if (kind === 'flood') {
+          if (a > 0.15) hit++
+        } else peak = Math.max(peak, a * (1 - r.data[i + 1] / 255) * 2.2)
+      }
+    if (kind === 'flood')
+      return hit > 6 ? { id: `fl${tx}${ty}`, kind: 'flood', lat: p.lat, lng: p.lng, radiusM: 0, label: '침수흔적 구역', detail: '행정안전부 침수흔적도에 기록된 과거 침수 구역', source: '행정안전부 생활안전지도 침수흔적도 (실데이터)' } : null
+    return peak > 0.45 ? { id: `cr${tx}${ty}`, kind: 'theft', lat: p.lat, lng: p.lng, radiusM: 0, label: '차량 범죄 주의 구간', detail: `절도 밀도 상위 구간 (밀도 ${Math.round(peak * 100)})`, source: '경찰청 범죄주의구간(절도) · 생활안전지도 (실데이터)' } : null
+  }
+}
+
+function items(json: unknown): unknown[] {
+  const it = (json as { response?: { body?: { items?: { item?: unknown } } } })?.response?.body?.items?.item ?? []
+  return Array.isArray(it) ? it : [it]
 }
 
 interface KmaItem {
   category: string
-  fcstDate: string
-  fcstTime: string
-  fcstValue: string
+  fcstDate?: string
+  fcstTime?: string
+  fcstValue?: string
+  obsrValue?: string
 }
 
-/** KMA VilageFcstInfoService_2.0 getUltraSrtFcst response -> Weather (first rain hour, RN1, T1H). */
-export function parseUltraShort(json: unknown): Weather {
-  const items: KmaItem[] = (json as { response?: { body?: { items?: { item?: KmaItem[] } } } })?.response?.body?.items?.item ?? []
+/** KMA 초단기실황 + 초단기예보 -> Weather (now from the observation, first rain hour from the forecast). */
+export function parseWeather(ncst: unknown, ultra: unknown): Weather {
+  const now: Record<string, string> = {}
+  for (const it of items(ncst) as KmaItem[]) now[it.category] = it.obsrValue ?? ''
   const byTime = new Map<string, Record<string, string>>()
-  for (const it of items) {
-    const k = it.fcstDate + it.fcstTime
-    byTime.set(k, { ...(byTime.get(k) ?? {}), [it.category]: it.fcstValue })
+  for (const it of items(ultra) as KmaItem[]) {
+    const k = `${it.fcstDate}${it.fcstTime}`
+    byTime.set(k, { ...(byTime.get(k) ?? {}), [it.category]: it.fcstValue ?? '' })
   }
   const slots = [...byTime.entries()].sort(([a], [b]) => a.localeCompare(b))
-  const now = slots[0]?.[1] ?? {}
-  const first = slots.findIndex(([, v]) => Number(v.PTY ?? 0) > 0)
-  const rn = (v?: string) => (v && /[\d.]+/.test(v) ? parseFloat(v) : 0)
+  const first = slots.find(([, v]) => Number(v.PTY ?? 0) > 0)
+  let rainInMin: number | undefined
+  if (first) {
+    const k = first[0]
+    const at = Date.UTC(+k.slice(0, 4), +k.slice(4, 6) - 1, +k.slice(6, 8), +k.slice(8, 10) - 9, +k.slice(10, 12))
+    rainInMin = Math.max(0, Math.round((at - Date.now()) / 60_000))
+  }
+  const num = (v?: string) => (v && /[\d.]+/.test(v) ? parseFloat(v) : 0)
+  const pty = Number(now.PTY ?? 0)
   return {
-    pty: Number(now.PTY ?? 0),
-    rainInMin: first >= 0 ? first * 60 : undefined,
-    pop: first >= 0 ? 80 : 10,
-    rain1hMm: rn(now.RN1),
-    tempC: Number(now.T1H ?? 20),
+    pty,
+    rainInMin: pty > 0 ? undefined : rainInMin,
+    pop: pty > 0 ? 100 : first ? 70 : 0,
+    rain1hMm: num(now.RN1),
+    tempC: num(now.T1H),
     uv: 3,
   }
 }
 
-/** KMA WthrWrnInfoService getWthrWrnList titles -> Alerts. */
+/** KMA WthrWrnInfoService getWthrWrnList: the latest announcement per kind decides whether it is in force. */
 export function parseWarnings(json: unknown): Alert[] {
-  const items: { title?: string; tmFc?: string }[] = (json as { response?: { body?: { items?: { item?: { title?: string; tmFc?: string }[] } } } })?.response?.body?.items?.item ?? []
+  const list = (items(json) as { title?: string; tmFc?: number | string }[]).sort((a, b) => Number(b.tmFc) - Number(a.tmFc))
   const kinds: AlertKind[] = ['호우경보', '호우주의보', '태풍경보', '대설주의보', '폭염경보', '한파주의보']
   const out: Alert[] = []
-  for (const it of items) {
-    const k = kinds.find((x) => it.title?.includes(x.replace('경보', ' 경보').replace('주의보', ' 주의보')) || it.title?.includes(x))
-    if (k && !it.title?.includes('해제')) out.push({ kind: k, area: it.title ?? '', issuedAt: Date.now() })
+  const seen = new Set<string>()
+  for (const it of list) {
+    const title = it.title ?? ''
+    for (const k of kinds) {
+      const stem = k.replace(/(경보|주의보)$/, '')
+      if (!title.includes(stem) || seen.has(stem)) continue
+      seen.add(stem)
+      if (/해제/.test(title)) continue
+      const level = title.includes(`${stem}경보`) ? `${stem}경보` : `${stem}주의보`
+      if (kinds.includes(level as AlertKind)) out.push({ kind: level as AlertKind, area: title, issuedAt: Date.now() })
+    }
   }
   return out
 }

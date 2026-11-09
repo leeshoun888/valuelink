@@ -30,7 +30,19 @@ Pleos Connect 위에서 차가 스스로 가치를 **지키고**, **증명하고
 | 무공해차 통합누리집 보조금 공고 | 교체 최적 시점 (실 부담 = 신차 − 보조금 − 매입가 − 할인) |
 | 국토교통부 리콜정보 · 배터리 이력관리제 | 차량 여권 |
 
-시연 빌드는 같은 형식의 스냅샷(`web/src/engine/publicdata.ts`)을 쓰고, 실서비스는 인증키를 가진 프록시가 격자 단위로 갱신합니다(`VITE_PUBLIC_PROXY`).
+**실연동 검증 (2026-11-09)**: 공공데이터포털·생활안전지도 인증키로 기상청 초단기실황·예보, 기상특보, 생활기상지수, 생활안전지도 침수흔적도·범죄주의구간(절도) WMS, 도로교통공단 결빙 사고다발지, 전국주차장정보표준데이터, 한국환경공단 충전소 API를 실제로 호출해 에뮬레이터에서 동작을 확인했습니다.
+
+- 인증키는 저장소와 APK에 없습니다. `tools/publicdata-proxy`(중계 서버)가 `../.secrets`에서 읽어 보관합니다.
+- 차량 앱은 같은 출처 경로(`https://appassets…/assets/web/pub/`)로 요청하고, Android(`PublicDataRelay`)가 중계 서버로 전달합니다. 차의 좌표 대신 기상청 격자, 약 1km 지도 타일, 자치구 코드만 씁니다.
+- 중계 서버가 없는 빌드(웹 데모, 제출 APK)는 `tools/publicdata-capture.mjs`로 수집한 강남·서초 실데이터(`web/public/pub`)를 같은 엔진으로 읽습니다. 날씨·특보만 시연 시나리오를 따릅니다.
+
+```bash
+tools/publicdata-proxy/run.sh                                   # :8791
+adb reverse tcp:8791 tcp:8791
+cd android && ./gradlew assembleDebug -PpublicProxy=http://127.0.0.1:8791
+```
+
+웹에서 실시간: `VITE_PUBLIC_PROXY=http://127.0.0.1:8791 npm run dev` 후 `http://127.0.0.1:5173/?live#/car`
 
 모든 제어는 capability를 확인한 뒤 실행하고, 지원하지 않거나 승인 전이면 같은 규칙이 음성 안내로 대체됩니다. 창문·전조등·블라인드는 P단 정차가 확인될 때만 움직입니다.
 

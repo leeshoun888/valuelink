@@ -27,7 +27,7 @@ interface Leg {
 /** Where each scripted place is (Seoul Gangnam). */
 const PLACE_POS: Record<string, [number, number]> = {
   '회사 주차장': PLACES.office,
-  '공영주차빌딩 A': PLACES.garage,
+  '역삼1동문화센터 공영주차장': PLACES.garage,
   '블루핸즈 강남점': PLACES.service,
   집: PLACES.home,
 }
@@ -292,7 +292,7 @@ const DAY: Step[] = [
   { at: 13, label: '08:03 급출발 2회', run: (s) => s.harsh(2) },
   {
     at: 34,
-    label: '08:24 회사 지상주차장 (침수흔적 구역), 전조등 켜진 채 주차',
+    label: '08:24 강남역 남쪽 회사 주차장 (실제 침수흔적 구역), 전조등 켜진 채 주차',
     run: (s) => {
       s.park('회사 주차장')
       s.sig.headlightsOn = true
@@ -332,8 +332,8 @@ const DAY: Step[] = [
   },
   {
     at: 470,
-    label: '15:40 공영주차빌딩 A 4층으로 이동',
-    run: (s) => s.drive({ name: '공영주차빌딩 A', km: 0.6, cruiseKph: 18 }),
+    label: '15:40 역삼1동문화센터 공영주차장으로 이동',
+    run: (s) => s.drive({ name: '역삼1동문화센터 공영주차장', km: 0.5, cruiseKph: 18 }),
   },
   {
     at: 540,
@@ -365,7 +365,7 @@ const DAY: Step[] = [
   },
   {
     at: 720,
-    label: '19:50 집 도착 (범죄 주의 구간), 완속 충전 (상한 100%)',
+    label: '19:50 집 도착 (실제 절도 주의 구간), 완속 충전 (상한 100%)',
     run: (s) => {
       s.park('집')
       s.sig.doorsLocked = false

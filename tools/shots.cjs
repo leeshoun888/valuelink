@@ -29,7 +29,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
     console.log('shot', name)
   }
   // Car app states. The store is exposed as globalThis.__cvStore; the simulator jumps along "밸류링크의 하루".
-  const at = (min, extra = '') => `(() => { const s = __cvStore.getState(); s.setPlaying(false); s.sim.jumpTo(${min}); ${extra}; for (let i = 0; i < 3; i++) s.runtime.tick(1000) })()`
+  const at = (min, extra = '') => `(async () => { const s = __cvStore.getState(); s.setPlaying(false); s.sim.jumpTo(${min}); for (let i = 0; i < 3; i++) s.runtime.tick(1000); await new Promise((r) => setTimeout(r, 4000)); for (let i = 0; i < 3; i++) s.runtime.tick(1000); ${extra}; s.runtime.tick(1000) })()`
   await shot('car_parked', '#/car', 1700, 1212, at(60, "s.setCarTheme('light')"))
   await shot('car_dark', '#/car', 1700, 1212, at(60, "s.setCarTheme('dark')"))
   await shot('car_charging', '#/car', 1700, 1212, at(725, "s.setCarTheme('light')"))
@@ -39,7 +39,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
   await shot('car_tradeup', '#/car', 1700, 1212, at(60, "s.setCarTheme('light'); s.previewTradeUp(); s.runtime.dismiss(); setTimeout(() => s.setSheet('tradeUp'), 200)"))
   await shot('car_tradeup_alert', '#/car', 1700, 1212, at(60, "s.setCarTheme('light'); s.previewTradeUp()"))
   await shot('car_flood', '#/car', 1700, 1212, at(452, "s.setCarTheme('light')"))
-  await shot('car_valuemap', '#/car', 1700, 1212, at(452, "s.setCarTheme('light'); setTimeout(() => s.setSheet('map'), 200)"))
+  await shot('car_valuemap', '#/car', 1700, 1212, at(452, "s.setCarTheme('light'); s.runtime.dismiss(); setTimeout(() => s.setSheet('map'), 200)"))
   await shot('car_portrait', '#/car', 840, 1184, at(60, "s.setCarTheme('light')"))
   await shot('console', '#/console', 1600, 1000, at(725), { scale: 1.5 })
   await shot('passport', '#/passport', 1200, 1500, null, { full: true, scale: 1.5 })

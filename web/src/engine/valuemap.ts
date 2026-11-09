@@ -45,7 +45,11 @@ const HEAT_FADE = 5_000 // [가정] UV / heat fade of the interior per day
 
 function riskOf(place: { lat: number; lng: number }, lot: Lot | undefined, feed: PublicFeed, sig: VehicleSignals, valueWon: number): PlaceRisk {
   const f: RiskFactor[] = []
-  const inZone = (k: Zone['kind']) => feed.zones.find((z) => z.kind === k && distanceM(place, z) <= z.radiusM)
+  // live: sample the real map layers (flood trace, crime density); snapshot: the regional pack's circles
+  const inZone = (k: Zone['kind']) => {
+    if (feed.sample && (k === 'flood' || k === 'theft')) return feed.sample(k, place) ?? undefined
+    return feed.zones.find((z) => z.kind === k && distanceM(place, z) <= z.radiusM)
+  }
   const alert = (k: string) => feed.alerts.find((a) => a.kind.startsWith(k))
   const underground = lot?.kind === '지하'
   const high = lot?.kind === '주차빌딩'
@@ -108,15 +112,16 @@ export function valueMap(sig: VehicleSignals, feed: PublicFeed, valueManwon: num
   const rated = lotsNear.map((l) => ({ ...l, risk: riskOf(l, l, feed, moved, valueWon) }))
   const cand = rated.filter((l) => l.id !== lot?.id && l.distanceM <= 1_200).sort((a, b) => a.risk.expectedLoss - b.risk.expectedLoss || a.distanceM - b.distanceM)[0]
   const best = cand && risk.expectedLoss - cand.risk.expectedLoss > Math.max(50_000, risk.expectedLoss * 0.5) ? { ...cand, saved: risk.expectedLoss - cand.risk.expectedLoss } : undefined
-  const zonesNear = feed.zones
+  const sampled = (['flood', 'theft'] as const).map((k) => feed.sample?.(k, here)).filter((z): z is Zone => Boolean(z))
+  const zonesNear = [...feed.zones, ...sampled]
     .map((z) => ({ ...z, distanceM: distanceM(here, z) }))
     .filter((z) => z.distanceM <= 2_000)
-    .map((z) => ({ ...z, inside: z.distanceM <= z.radiusM }))
+    .map((z) => ({ ...z, inside: z.radiusM === 0 || z.distanceM <= z.radiusM }))
   return { ...risk, here, lot, best, zonesNear, lotsNear: rated }
 }
 
 /** Accident hotspot within `ahead` metres of the car while driving. */
-export function hotspotNear(sig: VehicleSignals, feed: PublicFeed, ahead = 400) {
+export function hotspotNear(sig: VehicleSignals, feed: PublicFeed, ahead = 600) {
   if (!sig.position) return undefined
   const here = at(sig.position)
   return feed.zones.find((z) => z.kind === 'accident' && distanceM(here, z) <= z.radiusM + ahead)

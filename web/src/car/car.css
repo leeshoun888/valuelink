@@ -1322,3 +1322,36 @@
 .jg-leads b {
   font-size: 19px;
 }
+
+.jg-vm .ov {
+  image-rendering: auto;
+}
+.jg-vm .ov.flood {
+  opacity: 0.85;
+}
+.jg-vm .ov.theft {
+  opacity: 0.35;
+  mix-blend-mode: multiply;
+}
+.jg-app[data-theme='dark'] .jg-vm .ov.theft {
+  mix-blend-mode: screen;
+}
+.jg-vm .epit circle {
+  fill: #00a37a;
+  stroke: #fff;
+  stroke-width: 3;
+}
+.jg-vm .epit text {
+  font-size: 15px;
+  fill: #fff;
+}
+.jg-vm .epit .lname {
+  fill: #00a37a;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: #eeeef0;
+  stroke-width: 5px;
+}
+.jg-vm-chips i.epit {
+  background: #00a37a;
+}

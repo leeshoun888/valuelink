@@ -40,6 +40,9 @@ android {
         buildConfigField("String", "PLEOS_CLIENT_SECRET", pleosClientSecret.asBuildConfigString())
         // How the opaque Light.setAmbientLightBrightnessColor Int is encoded: "rgb" (0xRRGGBB) or
         // "preset" (Virtual Console index Cyan=0, Blue=1, Purple=2, White=3). Undocumented: probe on the emulator.
+        // Public-data proxy (tools/publicdata-proxy). Empty: the app uses the bundled snapshot.
+        // Emulator: -PpublicProxy=http://127.0.0.1:8791 with `adb reverse tcp:8791 tcp:8791`.
+        buildConfigField("String", "PUBLIC_PROXY", ((findProperty("publicProxy") as String?) ?: "").asBuildConfigString())
         buildConfigField(
             "String", "AMBIENT_COLOR_MODE",
             ((findProperty("ambientColorMode") as String?) ?: "rgb").asBuildConfigString(),

@@ -6,7 +6,7 @@
 // runtime turns the same rule into a suggestion instead (graceful degradation).
 
 import type { VehicleAction, VehicleSignals } from './types'
-import type { PublicFeed } from './publicdata'
+import { distanceM, type PublicFeed } from './publicdata'
 import { hotspotNear, type ValueMap } from './valuemap'
 import { SOH_PER_CAPPED_SESSION } from './battery'
 import { VALUE_PER_SOH_POINT, won } from './valuation'
@@ -125,6 +125,29 @@ const WARNING_KO: Record<string, string> = {
   POWER_DOWN: '출력 제한',
 }
 export const warningName = (t: string) => WARNING_KO[t] ?? t
+
+/** Nearest E-pit with a free charger (한국환경공단 live status), else the nearest free fast charger. */
+export function bestCharger(sig: VehicleSignals, pub?: PublicFeed) {
+  if (!sig.position || !pub?.chargers?.length) return undefined
+  const here = { lng: sig.position[0], lat: sig.position[1] }
+  const free = pub.chargers.filter((c) => c.avail > 0 && c.fast).map((c) => ({ ...c, d: distanceM(here, c) }))
+  const epit = free.filter((c) => c.epit && c.d < 8_000).sort((a, b) => a.d - b.d)[0]
+  return epit ?? free.sort((a, b) => a.d - b.d)[0]
+}
+
+function chargeSuggestion(sig: VehicleSignals, pub?: PublicFeed): Suggestion {
+  const c = bestCharger(sig, pub)
+  if (!c)
+    return { id: 'chg', kind: 'deepDischarge', title: '충전이 필요해요', detail: '내비 주변 충전소 목록을 열어요.', cta: { label: '주변 충전소', action: { kind: 'showChargers', reason: 'SoC ≤ 12%' } } }
+  return {
+    id: 'chg',
+    kind: 'deepDischarge',
+    title: c.epit ? `${c.name}: 빈 충전기 ${c.avail}대` : `${c.name}: 빈 급속 ${c.avail}대`,
+    detail: `${(c.d / 1000).toFixed(1)}km · 최대 ${c.maxKw}kW (한국환경공단 충전기 실시간 상태). 도착 전에 배터리를 예열해 둘게요.`,
+    channel: c.epit ? 'E-pit' : undefined,
+    cta: { label: c.epit ? 'E-pit 안내' : '충전소 안내', action: { kind: 'searchPlace', value: c.name, reason: 'SoC ≤ 12%, 빈 충전기' } },
+  }
+}
 
 /** Cable in, charging enabled, or charging: any of them means the charge limit matters now. */
 export const isPlugged = (sig: VehicleSignals) => Boolean(sig.plugged || sig.chargeSwitch || sig.chargeState === 'charging')
@@ -440,7 +463,7 @@ export const RULES: Rule[] = [
   {
     kind: 'deepDischarge',
     cooldownMs: 3 * 3600e3,
-    test: ({ sig }) => {
+    test: ({ sig, pub }) => {
       if (sig.socPct === undefined || sig.socPct > 12 || sig.speedKph < 1) return null
       return {
         actions: [],
@@ -452,14 +475,7 @@ export const RULES: Rule[] = [
           basis: '깊은 방전 회피',
           say: `배터리가 ${sig.socPct}%예요. 가까운 충전소를 띄워드릴게요.`,
         },
-        suggestion: {
-          id: 'chg',
-          kind: 'deepDischarge',
-          title: '충전이 필요해요',
-          detail: '가까운 E-pit 초고속충전소에 빈 충전기가 있어요 (한국환경공단 충전기 실시간 상태). 배터리 예열까지 맞춰 둘게요.',
-          channel: 'E-pit',
-          cta: { label: 'E-pit 안내', action: { kind: 'searchPlace', value: 'E-pit', reason: 'SoC ≤ 12%, 빈 충전기' } },
-        },
+        suggestion: chargeSuggestion(sig, pub),
       }
     },
   },

@@ -38,14 +38,25 @@ export function ValueMapSheet({ snap, onClose }: { snap: Snapshot; onClose: () =
             <g clipPath="url(#vmclip)">
               <rect width={W} height={H} className="plate" />
               <rect width={W} height={H} fill="url(#vmgrid)" />
-              <path d={`M0 ${H * 0.62} L${W} ${H * 0.38}`} className="road" />
-              <path d={`M${W * 0.36} 0 L${W * 0.52} ${H}`} className="road" />
-              <path d={`M0 ${H * 0.2} L${W} ${H * 0.28}`} className="road thin" />
-              {m.zonesNear.map((z) => {
-                const p = px(z)
-                return <circle key={z.id} cx={p.x} cy={p.y} r={z.radiusM * k} className={`zone ${z.kind}`} />
+              {!f.overlays?.length && (
+                <>
+                  <path d={`M0 ${H * 0.62} L${W} ${H * 0.38}`} className="road" />
+                  <path d={`M${W * 0.36} 0 L${W * 0.52} ${H}`} className="road" />
+                  <path d={`M0 ${H * 0.2} L${W} ${H * 0.28}`} className="road thin" />
+                </>
+              )}
+              {f.overlays?.map((o) => {
+                const a = px({ lat: o.north, lng: o.west })
+                const b = px({ lat: o.south, lng: o.east })
+                return <image key={o.url} href={o.url} x={a.x} y={a.y} width={b.x - a.x} height={b.y - a.y} preserveAspectRatio="none" className={`ov ${o.layer}`} />
               })}
-              {m.zonesNear.map((z) => {
+              {m.zonesNear
+                .filter((z) => z.radiusM > 0)
+                .map((z) => {
+                  const p = px(z)
+                  return <circle key={z.id} cx={p.x} cy={p.y} r={z.radiusM * k} className={`zone ${z.kind}`} />
+                })}
+              {m.zonesNear.filter((z) => z.radiusM > 0).map((z) => {
                 const p = px(z)
                 const y = Math.min(H - 70, p.y + z.radiusM * k - 16)
                 if (p.x < -40 || p.x > W + 40 || p.y < -z.radiusM * k || p.y > H + z.radiusM * k) return null
@@ -60,7 +71,7 @@ export function ValueMapSheet({ snap, onClose }: { snap: Snapshot; onClose: () =
                   const b = px(m.best)
                   return <path d={`M${W / 2} ${H / 2} L${b.x} ${b.y}`} className="route" />
                 })()}
-              {m.lotsNear.map((l) => {
+              {m.lotsNear.filter((l) => l.public || l.id === m.best?.id).slice(0, 14).map((l) => {
                 const p = px(l)
                 const best = m.best?.id === l.id
                 const here = m.lot?.id === l.id
@@ -75,6 +86,21 @@ export function ValueMapSheet({ snap, onClose }: { snap: Snapshot; onClose: () =
                   </g>
                 )
               })}
+              {f.chargers
+                ?.filter((c) => c.epit)
+                .map((c) => {
+                  const p = px(c)
+                  if (p.x < 0 || p.y < 0 || p.x > W || p.y > H) return null
+                  return (
+                    <g key={c.id} transform={`translate(${p.x} ${p.y})`} className="epit">
+                      <circle r="14" />
+                      <text y="5" textAnchor="middle">⚡</text>
+                      <text x="22" y="6" className="lname">
+                        {c.name} · 빈 {c.avail}/{c.total}
+                      </text>
+                    </g>
+                  )
+                })}
               <g transform={`translate(${W / 2} ${H / 2})`} className={`car lv-${m.level}`}>
                 <circle r="34" className="halo" />
                 <circle r="13" className="dot" />
@@ -151,7 +177,7 @@ export function ValueMapSheet({ snap, onClose }: { snap: Snapshot; onClose: () =
           )}
           <div className="jg-vm-src">
             <p>
-              공공데이터 {snap.pub.mode === 'live' ? '실시간' : '스냅샷'} · 기상청 격자 {f.grid.nx},{f.grid.ny} (정확한 위치는 차 밖으로 나가지 않아요)
+              {snap.pub.mode === 'live' ? `공공데이터 실시간 · ${f.region}` : f.overlays?.length ? '공공데이터 실데이터 캡처 (날씨·특보는 시연 시나리오)' : '공공데이터 스냅샷'} · 기상청 격자 {f.grid.nx},{f.grid.ny} · 지도 1km 타일 (정확한 위치는 차 밖으로 나가지 않아요)
             </p>
             <ul>
               {snap.pub.calls.slice(0, 4).map((c, i) => (

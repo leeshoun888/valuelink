@@ -8,7 +8,7 @@ import { HabitTracker, type HabitStats } from './habits'
 import { Passport, type PassportCheck } from './passport'
 import { decodeVin, links, type Links } from './links'
 import type { Bookmark, VehicleAction, VehicleSignals } from './types'
-import { ScenarioPublicSource, type PublicCall, type PublicFeed, type PublicSource } from './publicdata'
+import { LivePublicSource, ScenarioPublicSource, type PublicCall, type PublicFeed, type PublicSource } from './publicdata'
 import { valueMap, type ValueMap } from './valuemap'
 import { ageCurve, expectedSoh, identify, KM_PER_YEAR, valuate, VALUE_PER_SOH_POINT, type CarModel, type Valuation } from './valuation'
 
@@ -175,7 +175,7 @@ export class Runtime {
   /** Re-read public data every 5 min of vehicle time, or when the car moved ~200 m. */
   private refreshFeed(sig: VehicleSignals, dt: number) {
     const pos = sig.position ? `${sig.position[0].toFixed(3)},${sig.position[1].toFixed(3)}` : ''
-    if (!this.feed || sig.t - this.feedAt > 5 * 60_000 || pos !== this.feedPos || this.pub.mode === 'snapshot') {
+    if (!this.feed || sig.t - this.feedAt > 5 * 60_000 || pos !== this.feedPos || true) {
       this.feed = this.pub.feed(sig.position, sig.t)
       this.feedAt = sig.t
       this.feedPos = pos
@@ -198,9 +198,19 @@ export class Runtime {
 
   /** Demo controls for the public-data scenario (in-car menu, console). */
   publicScenario(kind: 'rainSoon' | 'heavyRain' | 'hail' | 'clear') {
+    const t = this.bus.read().t
+    if (this.pub instanceof LivePublicSource) {
+      // live data stays real; the demo only layers a forecast / warning on top (labelled in the UI)
+      const d = this.pub
+      if (kind === 'rainSoon') d.demo = { pty: 0, rainInMin: 30, pop: 80 }
+      if (kind === 'heavyRain') d.demo = { pty: 1, rainInMin: undefined, pop: 100, rain1hMm: 45, alert: '호우경보' }
+      if (kind === 'hail') d.demo = { alert: '우박' }
+      if (kind === 'clear') d.demo = {}
+      this.feedAt = -Infinity
+      return
+    }
     const src = this.pub as ScenarioPublicSource
     if (!('setWeather' in src)) return
-    const t = this.bus.read().t
     if (kind === 'rainSoon') src.setWeather({ pty: 0, rainInMin: 30, pop: 80 })
     if (kind === 'heavyRain') {
       src.setWeather({ pty: 1, rainInMin: undefined, pop: 100, rain1hMm: 45 })

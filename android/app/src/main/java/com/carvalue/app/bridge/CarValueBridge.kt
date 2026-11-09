@@ -23,6 +23,10 @@ class CarValueBridge(
 ) {
 
     /** `{kind, value, reason}` → Vehicle SDK setter. False when unsupported/refused; SDK result goes to the trace. */
+    /** True when the build has a public-data proxy (the web then reads live data through /pub/). */
+    @JavascriptInterface
+    fun publicData(): Boolean = BuildConfig.PUBLIC_PROXY.isNotEmpty()
+
     @JavascriptInterface
     fun act(json: String): Boolean {
         if (!isTrustedPage()) return false

@@ -152,7 +152,7 @@ class MainActivity : ComponentActivity() {
 
         webView.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
-                assetLoader.shouldInterceptRequest(request.url)
+                PublicDataRelay.intercept(request) ?: assetLoader.shouldInterceptRequest(request.url)
 
             /** The UI never navigates away from our origin; anything else (http, other sites) is blocked. */
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean =
@@ -224,7 +224,7 @@ class MainActivity : ComponentActivity() {
         collector.put("headingDeg", heading)
     }
 
-    private companion object {
+    companion object {
         const val APP_HOST = "appassets.androidplatform.net"
         const val UI_URL = "https://$APP_HOST/assets/web/index.html#/car"
         const val JS_NAME = "CarValueNative"

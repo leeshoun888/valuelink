@@ -12,6 +12,8 @@ import type { BusEvent, Capabilities, VehicleBus } from './bus'
 import type { VehicleAction, VehicleSignals } from './types'
 
 interface NativeApi {
+  /** the build has a public-data proxy; live data is read through https://appassets…/assets/web/pub/ */
+  publicData?: () => boolean
   act(json: string): boolean
   capabilities(): string
   speak(key: string, text: string): void

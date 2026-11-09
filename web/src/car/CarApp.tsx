@@ -7,7 +7,7 @@ import { useStore } from '../state/store'
 import { useVoice } from '../voice/voice'
 import type { Snapshot } from '../engine/runtime'
 import { manwon, won } from '../engine/valuation'
-import type { LedgerEntry } from '../engine/guard'
+import { activeRouteKm, type LedgerEntry } from '../engine/guard'
 import { ago, clock } from '../ui/format'
 import { Logo } from '../ui/icons'
 import { isNative } from '../engine/native'
@@ -495,7 +495,7 @@ function DriveView({ snap }: { snap: Snapshot; theme: 'light' | 'dark' }) {
         <p className="jg-label">오늘 지킨 가치</p>
         <p className="jg-today-big num">+{won(today)}</p>
         <p className="jg-sub">
-          {snap.sig.routeRemainingKm !== undefined ? `목적지까지 ${Math.round(snap.sig.routeRemainingKm)}km · ` : ''}배터리 {Math.round(snap.sig.socPct ?? 0)}%
+          {activeRouteKm(snap.sig) !== undefined ? `목적지까지 ${Math.round(snap.sig.routeRemainingKm!)}km · ` : ''}배터리 {Math.round(snap.sig.socPct ?? 0)}%
         </p>
       </section>
     </main>

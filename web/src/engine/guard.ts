@@ -100,13 +100,19 @@ export const warningName = (t: string) => WARNING_KO[t] ?? t
 /** Cable in, charging enabled, or charging: any of them means the charge limit matters now. */
 export const isPlugged = (sig: VehicleSignals) => Boolean(sig.plugged || sig.chargeSwitch || sig.chargeState === 'charging')
 
+/** Distance to the navigation destination, only while a route is set (the host reports 0 with no route). */
+export const activeRouteKm = (sig: VehicleSignals) => (sig.routeRemainingKm !== undefined && sig.routeRemainingKm > 0.5 ? sig.routeRemainingKm : undefined)
+/** Range at the cap, only when the car reports a usable range. */
+const usableRange = (km?: number) => (km !== undefined && km > 1 ? km : undefined)
+
 export const RULES: Rule[] = [
   {
     kind: 'tripCharge',
     cooldownMs: 6 * 3600e3,
-    test: ({ sig, rangeAtLimitKm }) => {
+    test: ({ sig, rangeAtLimitKm: r }) => {
       const plugged = isPlugged(sig)
-      const need = sig.routeRemainingKm
+      const need = activeRouteKm(sig)
+      const rangeAtLimitKm = usableRange(r)
       if (!plugged || need === undefined || rangeAtLimitKm === undefined) return null
       if ((sig.chargeLimitPct ?? 100) >= 100 || need < rangeAtLimitKm * 0.9) return null
       return {
@@ -128,14 +134,16 @@ export const RULES: Rule[] = [
     test: ({ sig, valueManwon, rangeAtLimitKm }) => {
       const plugged = isPlugged(sig)
       if (!plugged || (sig.chargeLimitPct ?? 100) <= 85) return null
-      if (sig.routeRemainingKm !== undefined && rangeAtLimitKm !== undefined && sig.routeRemainingKm >= rangeAtLimitKm * 0.9) return null
+      const need = activeRouteKm(sig)
+      const range = usableRange(rangeAtLimitKm)
+      if (need !== undefined && range !== undefined && need >= range * 0.9) return null
       const w = sohWon(valueManwon, SOH_PER_CAPPED_SESSION)
       return {
         actions: [{ kind: 'chargeLimit', value: 80, reason: '일상 충전은 80%: 고충전 대기 시간 단축' }],
         entry: {
           kind: 'chargeCap',
           title: '충전 상한 100% → 80%',
-          detail: `오늘 일정에는 80%(약 ${Math.round(rangeAtLimitKm ?? 0)}km)로 충분해요. 완충 상태로 밤새 두지 않도록 차가 직접 맞췄어요.`,
+          detail: `오늘 일정에는 80%${range !== undefined ? `(약 ${Math.round(range)}km)` : ''}로 충분해요. 완충 상태로 밤새 두지 않도록 차가 직접 맞췄어요.`,
           won: w,
           basis: `완충 1회 회피 ≈ SOH +${SOH_PER_CAPPED_SESSION.toFixed(4)}%p × 1%p당 차량가 ${(VALUE_PER_SOH_POINT * 100).toFixed(1)}%`,
           say: '오늘은 80%까지만 충전할게요. 배터리 수명을 지키는 가장 쉬운 방법이에요.',

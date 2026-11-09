@@ -15,7 +15,7 @@
 import { Component, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { ContactShadows, Environment, Lightformer, OrbitControls, useGLTF } from '@react-three/drei'
-import { Blocks, FloodFloor, Parts, Sweep, Water, type FloodScene, type Part } from './Scenes'
+import { Blocks, FloodFloor, Parts, Sweep, Water, type FloodScene, type Part, type PassportScene } from './Scenes'
 import * as THREE from 'three'
 import {
   BELT_Y,
@@ -45,12 +45,14 @@ export interface CarState {
   pulse?: 'windows' | 'lights' | 'blind' | 'charge' | null
   /** the part a warning lamp points at (glass body, part pulses amber) */
   part?: Part | null
+  /** callout beside that part, e.g. "타이어 공기압 · 방치 시 −2%" */
+  partLabel?: string
   /** flood scene: real flood-trace map under the car, water on a heavy-rain warning */
   flood?: FloodScene
   /** trade-up: light sweep into the next car */
   newCar?: boolean
   /** passport: glass day blocks beside the car */
-  passport?: number
+  passport?: PassportScene | null
 }
 
 export const DEFAULT_CAR: CarState = {
@@ -378,8 +380,18 @@ function GlbCar({ state, theme }: { state: CarState; theme: 'light' | 'dark' }) 
       if (o.name.startsWith('window_')) panes.push(o)
     })
     panes.sort((a, b) => ['window_fl', 'window_rl', 'window_fr', 'window_rr'].indexOf(a.name) - ['window_fl', 'window_rl', 'window_fr', 'window_rr'].indexOf(b.name))
-    return { root, panes, bodyMats, head: head as THREE.MeshStandardMaterial | null, tail: tail as THREE.MeshStandardMaterial | null }
+    // trade-up: a pale ghost of the current car that slides back and fades as the next one takes its place
+    const ghost = scene.clone(true)
+    const ghostMat = new THREE.MeshPhysicalMaterial({ color: '#d7dade', roughness: 0.2, metalness: 0.4, clearcoat: 1, transparent: true, opacity: 0, depthWrite: false })
+    ghost.traverse((o) => {
+      const m = o as THREE.Mesh
+      if (m.isMesh) m.material = ghostMat
+    })
+    ghost.visible = false
+    return { root, panes, bodyMats, head: head as THREE.MeshStandardMaterial | null, tail: tail as THREE.MeshStandardMaterial | null, ghost, ghostMat }
   }, [scene])
+  const ghostT = useRef(1)
+  const wasNew = useRef(false)
   const open = useRef([0, 0, 0, 0])
   const lamp = useRef(0)
   const xr = useRef(0)
@@ -402,6 +414,13 @@ function GlbCar({ state, theme }: { state: CarState; theme: 'light' | 'dark' }) 
     }
     xr.current += ((state.xray || state.part ? 1 : 0) - xr.current) * k
     nc.current += ((state.newCar ? 1 : 0) - nc.current) * (1 - Math.exp(-dt * 1.4))
+    if (state.newCar && !wasNew.current) ghostT.current = 0
+    wasNew.current = Boolean(state.newCar)
+    if (ghostT.current < 1) ghostT.current = Math.min(1, ghostT.current + dt / 2.2)
+    const gt = ghostT.current
+    parts.ghost.visible = gt < 1
+    parts.ghost.position.x = -0.15 - 2.6 * gt * gt
+    parts.ghostMat.opacity = 0.45 * (1 - gt)
     for (const m of parts.bodyMats) {
       m.opacity = 1 - 0.82 * xr.current
       m.depthWrite = xr.current < 0.5
@@ -409,7 +428,12 @@ function GlbCar({ state, theme }: { state: CarState; theme: 'light' | 'dark' }) 
       m.color.copy(WHITE).lerp(NEXT_TINT, nc.current)
     }
   })
-  return <primitive object={parts.root} />
+  return (
+    <>
+      <primitive object={parts.root} />
+      <primitive object={parts.ghost} />
+    </>
+  )
 }
 
 /** True once the model file is known to exist (a missing file must not take the whole canvas down). */
@@ -627,12 +651,12 @@ export function StudioCar({ state, theme = 'light', autoRotate = true, interacti
           <Pack state={state} theme={theme} />
           <ChargePort state={state} />
           <Suspense fallback={null}>
-            <Parts show={state.xray || state.charging} part={state.part ?? null} />
+            <Parts show={state.xray || state.charging} part={state.part ?? null} label={state.partLabel} />
           </Suspense>
           <FloodFloor flood={state.flood} />
           <Water flood={state.flood} />
           <Sweep on={Boolean(state.newCar)} />
-          <Blocks count={state.passport ?? 0} />
+          <Blocks scene={state.passport} theme={theme} />
         </group>
         <ContactShadows position={[0, 0.001, 0]} opacity={theme === 'dark' ? 0.8 : 0.6} scale={HALF_L * 4.2} blur={2.6} far={2.2} resolution={512} color="#000" />
         {lowPower && <AnimateOnChange state={state} />}

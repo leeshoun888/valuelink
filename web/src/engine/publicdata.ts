@@ -332,17 +332,19 @@ const LAND_ALERTS: AlertKind[] = ['호우경보', '호우주의보', '태풍경�
 
 interface Raster {
   data: Uint8ClampedArray
+  size: number
   tx: number
   ty: number
 }
 
-async function decodePng(url: string): Promise<Uint8ClampedArray> {
+async function decodePng(url: string): Promise<{ data: Uint8ClampedArray; size: number }> {
   const blob = await (await fetch(url)).blob()
   const bmp = await createImageBitmap(blob)
-  const c = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(TILE_PX, TILE_PX) : Object.assign(document.createElement('canvas'), { width: TILE_PX, height: TILE_PX })
+  const n = bmp.width || TILE_PX
+  const c = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(n, n) : Object.assign(document.createElement('canvas'), { width: n, height: n })
   const g = c.getContext('2d') as CanvasRenderingContext2D
-  g.drawImage(bmp, 0, 0, TILE_PX, TILE_PX)
-  return g.getImageData(0, 0, TILE_PX, TILE_PX).data
+  g.drawImage(bmp, 0, 0, n, n)
+  return { data: g.getImageData(0, 0, n, n).data, size: n }
 }
 
 /**
@@ -542,8 +544,8 @@ export class LivePublicSource implements PublicSource {
     const k = `${layer}${tx},${ty}`
     this.tiles.set(k, 'pending')
     try {
-      const data = await decodePng(this.tileUrl(layer, tx, ty))
-      this.tiles.set(k, { data, tx, ty })
+      const { data, size } = await decodePng(this.tileUrl(layer, tx, ty))
+      this.tiles.set(k, { data, size, tx, ty })
       if (this.captured) return
       let n = 0
       for (let i = 3; i < data.length; i += 4 * 16) if (data[i] > 40) n++
@@ -559,24 +561,25 @@ export class LivePublicSource implements PublicSource {
     const ty = Math.floor(p.lat / TILE_DEG)
     const r = this.tiles.get(`${kind}${tx},${ty}`)
     if (!r || typeof r === 'string') return undefined
-    const px = Math.floor(((p.lng - tx * TILE_DEG) / TILE_DEG) * TILE_PX)
-    const py = Math.floor((1 - (p.lat - ty * TILE_DEG) / TILE_DEG) * TILE_PX)
-    const rad = kind === 'flood' ? 5 : 10
+    const S = r.size
+    const px = Math.floor(((p.lng - tx * TILE_DEG) / TILE_DEG) * S)
+    const py = Math.floor((1 - (p.lat - ty * TILE_DEG) / TILE_DEG) * S)
+    const rad = Math.round(((kind === 'flood' ? 5 : 10) * S) / TILE_PX)
     let hit = 0
     let peak = 0
     for (let dy = -rad; dy <= rad; dy++)
       for (let dx = -rad; dx <= rad; dx++) {
         const x = px + dx
         const y = py + dy
-        if (x < 0 || y < 0 || x >= TILE_PX || y >= TILE_PX) continue
-        const i = (y * TILE_PX + x) * 4
+        if (x < 0 || y < 0 || x >= S || y >= S) continue
+        const i = (y * S + x) * 4
         const a = r.data[i + 3] / 255
         if (kind === 'flood') {
           if (a > 0.15) hit++
         } else peak = Math.max(peak, a * (1 - r.data[i + 1] / 255) * 2.2)
       }
     if (kind === 'flood')
-      return hit > 6 ? { id: `fl${tx}${ty}`, kind: 'flood', lat: p.lat, lng: p.lng, radiusM: 0, label: '침수흔적 구역', detail: '행정안전부 침수흔적도에 기록된 과거 침수 구역', source: '행정안전부 생활안전지도 침수흔적도 (실데이터)' } : null
+      return hit > 6 * (S / TILE_PX) ** 2 ? { id: `fl${tx}${ty}`, kind: 'flood', lat: p.lat, lng: p.lng, radiusM: 0, label: '침수흔적 구역', detail: '행정안전부 침수흔적도에 기록된 과거 침수 구역', source: '행정안전부 생활안전지도 침수흔적도 (실데이터)' } : null
     return peak > 0.45 ? { id: `cr${tx}${ty}`, kind: 'theft', lat: p.lat, lng: p.lng, radiusM: 0, label: '차량 범죄 주의 구간', detail: `절도 밀도 상위 구간 (밀도 ${Math.round(peak * 100)})`, source: '경찰청 범죄주의구간(절도) · 생활안전지도 (실데이터)' } : null
   }
 }

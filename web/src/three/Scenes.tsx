@@ -12,7 +12,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { useGLTF } from '@react-three/drei'
+import { Html, useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 import { TRACK_Z, WHEEL_X, WHEEL_Y } from './ioniq5'
 
@@ -41,7 +41,15 @@ const PART_OBJECTS: Record<Part, string[]> = {
   motor: ['motor_front', 'motor_rear'],
 }
 
-export function Parts({ show, part }: { show: boolean; part: Part | null }) {
+/** where the callout line starts for each part (car frame) */
+const ANCHOR: Record<Part, [number, number, number]> = {
+  tyre: [WHEEL_X[0], WHEEL_Y + 0.42, -TRACK_Z - 0.12],
+  lv: [1.92, 0.78, -0.42],
+  hv: [0.2, 0.32, -0.78],
+  motor: [WHEEL_X[0], WHEEL_Y + 0.2, -0.3],
+}
+
+export function Parts({ show, part, label }: { show: boolean; part: Part | null; label?: string }) {
   const { scene } = useGLTF(PARTS_URL)
   const objs = useMemo(() => {
     const root = scene.clone(true)
@@ -84,7 +92,19 @@ export function Parts({ show, part }: { show: boolean; part: Part | null }) {
       e.o.visible = vis.current > 0.01 && (!isTyre || hot)
     }
   })
-  return <primitive object={objs.root} />
+  return (
+    <>
+      <primitive object={objs.root} />
+      {part && label && (
+        <Html position={ANCHOR[part]} center={false} zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
+          <div className="cv-callout">
+            <i />
+            <span>{label}</span>
+          </div>
+        </Html>
+      )}
+    </>
+  )
 }
 
 // ---- flood floor: the real flood-trace map under the car -------------------------------------------------
@@ -100,7 +120,7 @@ function useFloodTexture(f?: FloodScene) {
   useEffect(() => {
     if (!f?.center || !f.tiles?.length) return
     let live = true
-    const N = 1024
+    const N = 2048
     const c = document.createElement('canvas')
     c.width = c.height = N
     const g = c.getContext('2d')!
@@ -109,7 +129,7 @@ function useFloodTexture(f?: FloodScene) {
     const mPerLng = 111_320 * Math.cos((lat0 * Math.PI) / 180)
     const toPx = (lat: number, lng: number) => ({ x: N / 2 + (((lng - lng0) * mPerLng) / SPAN_M) * N, y: N / 2 - (((lat - lat0) * 110_540) / SPAN_M) * N })
     const tmp = document.createElement('canvas')
-    tmp.width = tmp.height = 512
+    tmp.width = tmp.height = 1024
     const tg = tmp.getContext('2d')!
     Promise.all(
       f.tiles.map(
@@ -119,12 +139,12 @@ function useFloodTexture(f?: FloodScene) {
             img.crossOrigin = 'anonymous'
             img.onload = () => {
               // recolour the layer to one luminous blue (Apple-map restraint)
-              tg.clearRect(0, 0, 512, 512)
+              tg.clearRect(0, 0, 1024, 1024)
               tg.globalCompositeOperation = 'source-over'
-              tg.drawImage(img, 0, 0, 512, 512)
+              tg.drawImage(img, 0, 0, 1024, 1024)
               tg.globalCompositeOperation = 'source-in'
               tg.fillStyle = FLOOD_BLUE
-              tg.fillRect(0, 0, 512, 512)
+              tg.fillRect(0, 0, 1024, 1024)
               const a = toPx(t.north, t.west)
               const b = toPx(t.south, t.east)
               g.drawImage(tmp, a.x, a.y, b.x - a.x, b.y - a.y)
@@ -145,7 +165,7 @@ function useFloodTexture(f?: FloodScene) {
       g.fillRect(0, 0, N, N)
       const t = new THREE.CanvasTexture(c)
       t.colorSpace = THREE.SRGBColorSpace
-      t.anisotropy = 4
+      t.anisotropy = 8
       setTex((old) => {
         old?.dispose()
         return t
@@ -290,10 +310,29 @@ export function Water({ flood }: { flood?: FloodScene }) {
     normal.offset.x += dt * 0.025
     normal.offset.y += dt * 0.017
   })
+  const foamGeo = useMemo(() => new THREE.RingGeometry(0.4, 0.43, 64), [])
+  const foam = useMemo(() => new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0, toneMapped: false, depthWrite: false, side: THREE.DoubleSide }), [])
+  const foamRef = useRef<THREE.Group>(null)
+  useFrame(({ clock }) => {
+    const g = foamRef.current
+    if (!g) return
+    g.position.y = h.current + 0.002
+    g.visible = h.current > 0.03
+    foam.opacity = Math.min(0.55, h.current * 2.2) * (0.75 + 0.25 * Math.sin(clock.elapsedTime * 2))
+  })
+  useEffect(() => () => [foamGeo, foam].forEach((d) => d.dispose()), [foamGeo, foam])
   return (
-    <mesh ref={ref} rotation-x={-Math.PI / 2} material={mat} renderOrder={2}>
-      <circleGeometry args={[6.2, 96]} />
-    </mesh>
+    <>
+      <mesh ref={ref} rotation-x={-Math.PI / 2} material={mat} renderOrder={2}>
+        <circleGeometry args={[6.2, 96]} />
+      </mesh>
+      {/* a thin bright waterline where the water meets each tyre */}
+      <group ref={foamRef}>
+        {[WHEEL_X[0], WHEEL_X[1]].flatMap((x) =>
+          [-TRACK_Z, TRACK_Z].map((z) => <mesh key={`${x}${z}`} geometry={foamGeo} material={foam} position={[x, 0, z]} rotation-x={-Math.PI / 2} scale={[1, 0.62, 1]} renderOrder={3} />),
+        )}
+      </group>
+    </>
   )
 }
 
@@ -320,50 +359,100 @@ export function Sweep({ on }: { on: boolean }) {
 
 // ---- passport blocks ------------------------------------------------------------------------------------
 
-export function Blocks({ count }: { count: number }) {
-  const N = 28
-  const geo = useMemo(() => new THREE.BoxGeometry(0.17, 0.17, 0.17), [])
-  const edges = useMemo(() => new THREE.EdgesGeometry(geo), [geo])
-  const mat = useMemo(() => new THREE.MeshPhysicalMaterial({ color: '#ffffff', roughness: 0.08, metalness: 0, clearcoat: 1, transparent: true, opacity: 0, envMapIntensity: 1.6 }), [])
-  const lineMat = useMemo(() => new THREE.LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0 }), [])
-  const head = useMemo(() => new THREE.MeshBasicMaterial({ color: '#0a84ff', transparent: true, opacity: 0, toneMapped: false }), [])
-  useEffect(() => () => [geo, edges, mat, lineMat, head].forEach((d) => d.dispose()), [geo, edges, mat, lineMat, head])
-  const grow = useRef(0)
-  useFrame((_, dt) => {
-    const target = count > 0 ? N : 0
-    grow.current += (target - grow.current) * (1 - Math.exp(-dt * 1.6))
-    mat.opacity = Math.min(0.32, grow.current / N)
-    lineMat.opacity = Math.min(0.7, grow.current / N)
-    head.opacity = grow.current > N - 1.5 ? 0.9 : 0
-  })
-  const blocks = []
-  for (let i = 0; i < N; i++) {
-    // a gentle arc beside the car, oldest at the back
-    const t = i / (N - 1)
-    const x = 2.7 - t * 6.4
-    const z = 1.55 + 0.35 * Math.sin(t * Math.PI)
-    blocks.push(
-      <group key={i} position={[x, 0.09, z]} scale={1} visible>
-        <mesh geometry={geo} material={i === 0 ? head : mat} onBeforeRender={() => undefined} />
-        <lineSegments geometry={edges} material={lineMat} />
-      </group>,
-    )
-  }
-  return <BlocksReveal grow={grow}>{blocks}</BlocksReveal>
+/** One sealed day of the vehicle passport. */
+export interface DayBlock {
+  day: string
+  km: number
+  soh?: number
+  /** heavy-rain warning that day */
+  alert: boolean
+  /** a warning lamp was on that day */
+  warn: boolean
 }
 
-function BlocksReveal({ grow, children }: { grow: React.MutableRefObject<number>; children: React.ReactNode[] }) {
-  const ref = useRef<THREE.Group>(null)
-  useFrame(() => {
-    const g = ref.current
+export interface PassportScene {
+  days: DayBlock[]
+  /** index (0 = oldest shown) whose mileage was rolled back: it cracks red, everything after it falls dark */
+  tamper?: number | null
+}
+
+const INK = new THREE.Color('#ffffff')
+const INK_LIGHT = new THREE.Color('#1d1d1f')
+const RAIN = new THREE.Color('#2f8fff')
+const LAMP = new THREE.Color('#ff9f0a')
+const BROKEN = new THREE.Color('#ff3b30')
+
+/**
+ * The passport as objects: one glass block per day along an arc beside the car, height = kilometres driven, a
+ * blue core on heavy-rain days, an amber cap on warning-lamp days, the newest block lit. Rolling the odometer
+ * back cracks that block and the chain after it goes dark: the hash chain made visible.
+ */
+export function Blocks({ scene, theme = 'dark' }: { scene?: PassportScene | null; theme?: 'light' | 'dark' }) {
+  const ink = theme === 'dark' ? INK : INK_LIGHT
+  const days = scene?.days ?? []
+  const N = days.length
+  const maxKm = Math.max(30, ...days.map((d) => d.km))
+  const geo = useMemo(() => new THREE.BoxGeometry(1, 1, 1), [])
+  const edges = useMemo(() => new THREE.EdgesGeometry(geo), [geo])
+  const glass = useMemo(() => new THREE.MeshPhysicalMaterial({ color: theme === 'dark' ? '#ffffff' : '#c9ccd2', roughness: 0.06, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, transparent: true, opacity: 0, envMapIntensity: 1.8, depthWrite: false }), [])
+  const mats = useRef<{ core: THREE.MeshBasicMaterial; line: THREE.LineBasicMaterial; cap: THREE.MeshBasicMaterial }[]>([])
+  if (mats.current.length !== N) {
+    mats.current.forEach((m) => [m.core, m.line, m.cap].forEach((x) => x.dispose()))
+    mats.current = days.map(() => ({
+      core: new THREE.MeshBasicMaterial({ color: RAIN, transparent: true, opacity: 0, toneMapped: false }),
+      line: new THREE.LineBasicMaterial({ color: INK, transparent: true, opacity: 0 }),
+      cap: new THREE.MeshBasicMaterial({ color: LAMP, transparent: true, opacity: 0, toneMapped: false }),
+    }))
+  }
+  useEffect(() => () => [geo, edges, glass].forEach((d) => d.dispose()), [geo, edges, glass])
+  const grow = useRef(0)
+  const group = useRef<THREE.Group>(null)
+  useFrame(({ clock }, dt) => {
+    grow.current += ((N ? N : 0) - grow.current) * (1 - Math.exp(-dt * 1.4))
+    glass.opacity = N ? 0.22 : 0
+    const t = scene?.tamper ?? null
+    const g = group.current
     if (!g) return
     g.children.forEach((c, i) => {
       const s = THREE.MathUtils.clamp(grow.current - i, 0, 1)
-      c.scale.setScalar(s)
+      c.scale.set(1, Math.max(0.0001, s), 1)
       c.visible = s > 0.01
+      const m = mats.current[i]
+      if (!m) return
+      const d = days[i]
+      const broken = t !== null && i === t
+      const dark = t !== null && i > t
+      const head = i === N - 1 && t === null
+      m.line.color.copy(broken ? BROKEN : ink)
+      m.line.opacity = (dark ? 0.12 : head ? 1 : 0.55) * s
+      m.core.color.copy(broken ? BROKEN : d.alert ? RAIN : ink)
+      m.core.opacity = (broken ? 0.75 + 0.25 * Math.sin(clock.elapsedTime * 9) : dark ? 0.03 : head ? 0.95 : d.alert ? 0.55 : 0.1) * s
+      m.cap.opacity = d.warn && !dark ? 0.95 * s : 0
+      // a cracked block shivers
+      c.position.y = broken ? 0.004 * Math.sin(clock.elapsedTime * 40) : 0
     })
   })
-  return <group ref={ref}>{children}</group>
+  return (
+    <group ref={group}>
+      {days.map((d, i) => {
+        const t = N > 1 ? i / (N - 1) : 0
+        // a straight row along the car's near side on the floor: oldest at the rear, today by the front wheel
+        const x = -2.9 + t * 4.7
+        const z = 1.55
+        const h = 0.09 + (0.62 * d.km) / maxKm
+        return (
+          <group key={d.day} position={[x, 0, z]}>
+            <group position={[0, h / 2, 0]}>
+              <mesh geometry={geo} material={glass} scale={[0.19, h, 0.19]} renderOrder={3} />
+              <lineSegments geometry={edges} material={mats.current[i].line} scale={[0.19, h, 0.19]} />
+              <mesh geometry={geo} material={mats.current[i].core} scale={[0.07, h * 0.82, 0.07]} />
+            </group>
+            <mesh geometry={geo} material={mats.current[i].cap} position={[0, h + 0.012, 0]} scale={[0.195, 0.022, 0.195]} />
+          </group>
+        )
+      })}
+    </group>
+  )
 }
 
 useGLTF.preload(PARTS_URL)

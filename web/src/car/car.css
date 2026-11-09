@@ -22,7 +22,8 @@
   --c-3: rgba(29, 29, 31, 0.42);
   --c-fill: rgba(29, 29, 31, 0.06);
   --c-sep: rgba(29, 29, 31, 0.08);
-  --c-accent: #0071e3;
+  --c-accent: #0071e3; /* data only (flood map); controls are monochrome */
+  --c-on-ink: #ffffff;
   --c-attn: #ff9f0a;
   --c-risk: #ff3b30;
   --g-bg: rgba(255, 255, 255, 0.5);
@@ -49,6 +50,7 @@
   --c-fill: rgba(245, 245, 247, 0.08);
   --c-sep: rgba(245, 245, 247, 0.1);
   --c-accent: #2997ff;
+  --c-on-ink: #000000;
   --c-risk: #ff453a;
   --g-bg: rgba(38, 38, 40, 0.42);
   --g-bg-solid: rgba(28, 28, 30, 0.97);
@@ -93,8 +95,8 @@
   letter-spacing: -0.015em;
 }
 .jg-app .pill.primary {
-  background: var(--c-accent);
-  color: #fff;
+  background: var(--c-text);
+  color: var(--c-on-ink);
 }
 .jg-app .pill.secondary {
   background: var(--c-fill);
@@ -847,7 +849,7 @@
   height: 10px;
   margin-left: 10px;
   border-radius: 50%;
-  background: var(--c-accent);
+  background: var(--c-text);
   vertical-align: middle;
 }
 .jg-tu-model {
@@ -1037,7 +1039,7 @@
   fill: var(--c-accent);
 }
 .jg-vm .route {
-  stroke: var(--c-accent);
+  stroke: var(--c-text);
   stroke-width: 4;
   stroke-dasharray: 2 10;
   stroke-linecap: round;
@@ -1058,14 +1060,14 @@
   font-weight: 600;
 }
 .jg-vm .lot.best rect {
-  fill: var(--c-accent);
+  fill: var(--c-text);
   stroke: none;
 }
 .jg-vm .lot.best text:not(.lname) {
-  fill: #fff;
+  fill: var(--c-on-ink);
 }
 .jg-vm .lot.best .lname {
-  fill: var(--c-accent);
+  fill: var(--c-text);
 }
 .jg-vm .car .dot {
   fill: var(--c-text);
@@ -1223,7 +1225,7 @@
   gap: 16px;
   padding: 18px 22px;
   border-radius: 24px;
-  background: color-mix(in srgb, var(--c-accent) 10%, transparent);
+  background: var(--c-fill);
 }
 .jg-vm-best small {
   display: block;
@@ -1244,6 +1246,8 @@
 }
 .jg-vm-src {
   margin-top: auto;
+  font-size: 15px;
+  color: var(--c-3);
 }
 .jg-vm-src p {
   margin: 0 0 6px;
@@ -1289,7 +1293,7 @@
   border-radius: 99px;
   font-size: 19px;
   color: var(--c-2);
-  background: color-mix(in srgb, var(--c-attn) 12%, transparent);
+  background: var(--c-fill);
 }
 .jg-tu-timing b {
   color: var(--c-text);
@@ -1354,4 +1358,46 @@
 }
 .jg-vm-chips i.epit {
   background: #00a37a;
+}
+
+/* asset report as a side panel: the passport blocks stay visible */
+.jg-sheet-bg.side {
+  place-items: center end;
+  padding-right: 34px;
+  background: linear-gradient(90deg, transparent 0%, transparent 38%, rgba(0, 0, 0, 0.14) 62%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.jg-sheet.side {
+  width: 900px;
+  max-height: 1120px;
+  overflow: auto;
+}
+.jg-app.is-portrait .jg-sheet-bg.side {
+  place-items: center;
+  padding-right: 0;
+}
+
+/* report: quiet rows instead of cards */
+.jg-rows {
+  margin-top: 30px;
+  display: flex;
+  flex-direction: column;
+}
+.jg-rows > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 22px 4px;
+  border-top: 1px solid var(--c-sep);
+  font-size: 24px;
+}
+.jg-rows > div span {
+  color: var(--c-2);
+}
+.jg-rows > div b {
+  font-size: 26px;
+}
+.jg-rows > div.tap {
+  cursor: pointer;
 }

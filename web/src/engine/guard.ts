@@ -171,7 +171,7 @@ export const RULES: Rule[] = [
         actions: [{ kind: 'closeWindows', reason: `기상청 초단기예보: ${w.rainInMin}분 뒤 강수 (POP ${w.pop}%)` }],
         entry: {
           kind: 'rainForecast',
-          title: `비 예보 ${w.rainInMin}분 전 → 창문 미리 닫음`,
+          title: '비 오기 전 창문 닫음',
           detail: `기상청 초단기예보로 ${w.rainInMin}분 뒤 비 소식(강수확률 ${w.pop}%)을 받고, 비가 오기 전에 창문 ${sig.windowsOpen}개를 닫았어요. 와이퍼가 움직이기 전에 지켰어요.`,
           won: 150_000 * (w.pop / 100),
           basis: '실내 습기 제거·시트 클리닝 15만원 [가정] × 강수확률 (기상청 단기예보 조회서비스)',
@@ -192,24 +192,24 @@ export const RULES: Rule[] = [
         actions: [],
         entry: {
           kind: 'floodRisk',
-          title: `침수 위험 → ${b ? `${b.name} ${b.level} 안내` : '이동 권고'}`,
+          title: '침수 위험 안내',
           detail: `${flood.detail}. 지금 자리의 24시간 기대손실은 약 ${Math.round(loss / 10_000).toLocaleString()}만원이에요.`,
           won: 0,
           basis: '행정안전부 침수흔적도 × 기상청 호우특보 × 주차 위치. 침수 시 전손 [기대손실 = 확률 가정 × 차량가]',
           say: b
-            ? `호우경보가 내렸고 여기는 예전에 물에 잠긴 구역이에요. ${Math.round(b.distanceM)}미터 옆 ${b.name} ${b.level}로 옮기면 안전해요.`
+            ? `호우경보예요. 여기는 예전에 물에 잠긴 곳이에요. ${Math.round(b.distanceM)}미터 옆 ${b.name}로 옮기면 안전해요.`
             : '호우경보가 내렸고 여기는 예전에 물에 잠긴 구역이에요. 높은 곳으로 차를 옮겨 주세요.',
         },
         suggestion: {
           id: 'flood',
           kind: 'floodRisk',
-          title: `침수 위험: ${flood.label}`,
-          detail: b ? `${Math.round(b.distanceM)}m 옆 ${b.name} ${b.level}은 안전해요. 기대손실 ${Math.round(b.saved / 10_000).toLocaleString()}만원을 줄여요.` : '높은 곳으로 차를 옮겨 주세요.',
-          cta: b ? { label: `${b.name}로 안내`, action: { kind: 'searchPlace', value: b.name, reason: '침수 위험 회피' } } : { label: '밸류맵 보기', sheet: 'map' },
+          title: '침수 위험',
+          detail: b ? `${Math.round(b.distanceM)}m 옆 ${b.name}는 안전해요.` : '높은 곳으로 차를 옮겨 주세요.',
+          cta: b ? { label: '안내', action: { kind: 'searchPlace', value: b.name, reason: '침수 위험 회피' } } : { label: '밸류맵 보기', sheet: 'map' },
           onAccept: b
             ? {
                 kind: 'floodRisk',
-                title: `침수 위험 회피 → ${b.name} ${b.level}`,
+                title: '침수 위험 회피',
                 detail: `호우경보 중 침수흔적 구역을 벗어나도록 안내했어요. 기대손실 ${Math.round(b.saved / 10_000).toLocaleString()}만원 감소.`,
                 won: b.saved,
                 basis: '기대손실 차이 (현재 위치 − 추천 주차장), 침수흔적도 × 호우특보 [확률 가정]',
@@ -231,7 +231,7 @@ export const RULES: Rule[] = [
         actions: [],
         entry: {
           kind: 'stormCheck',
-          title: '호우 뒤 하부·고전압 배터리 점검 안내',
+          title: '호우 뒤 점검 안내',
           detail: `오늘 호우경보 중 침수흔적 구역에 ${min}분 있었어요. 하부와 고전압 배터리 방수 상태를 점검하면 여권에 "침수 안심" 기록이 남아요.`,
           won: 0,
           basis: '기상청 특보 해제 + 당일 침수 노출 기록 (여권). 침수 의심 차량은 중고 시세가 크게 하락',
@@ -241,12 +241,12 @@ export const RULES: Rule[] = [
           id: 'storm',
           kind: 'stormCheck',
           title: '호우 뒤 안심 점검',
-          detail: `침수 노출 ${min}분. 블루핸즈 하부·배터리 점검으로 "침수 안심" 인증을 여권에 남겨요.`,
+          detail: '블루핸즈에서 하부를 확인하면 여권에 기록돼요.',
           channel: '블루핸즈',
-          cta: { label: '블루핸즈 찾기', action: { kind: 'searchPlace', value: '블루핸즈', reason: '호우 뒤 안심 점검' } },
+          cta: { label: '블루핸즈', action: { kind: 'searchPlace', value: '블루핸즈', reason: '호우 뒤 안심 점검' } },
           onAccept: {
             kind: 'stormCheck',
-            title: '호우 뒤 안심 점검 → 블루핸즈',
+            title: '호우 뒤 점검 → 블루핸즈',
             detail: '점검 결과가 여권에 기록되면 침수 의심 없는 차로 인증돼요.',
             won: 0,
             basis: '블루핸즈 점검 예약 (현대차그룹 정비 매출)',
@@ -266,7 +266,7 @@ export const RULES: Rule[] = [
         actions: [{ kind: 'lockDoors', reason: `${z.label} 주차 (생활안전지도)` }],
         entry: {
           kind: 'theftZone',
-          title: '범죄 주의 구간 주차 → 문 잠금 확인',
+          title: '문 잠금 확인',
           detail: `${z.detail} 구간이에요. 문을 잠그고 차 안에 물건을 두지 않도록 안내했어요.`,
           won: 500_000 * 0.016,
           basis: '차량 파손·물품 도난 50만원 [가정] × 잠금 시 위험 감소분 (행정안전부 생활안전지도 치안안전)',
@@ -286,7 +286,7 @@ export const RULES: Rule[] = [
         actions: [],
         entry: {
           kind: 'accidentZone',
-          title: `앞쪽 ${z.label} → 감속 안내`,
+          title: `${z.label} 감속 안내`,
           detail: `${z.detail}. 사고 이력이 한 번 생기면 중고 시세가 크게 내려가요.`,
           won: 0,
           basis: '도로교통공단 사고다발지역정보. 사고 이력 차량 시세 하락 [가정 −5~10%]',
@@ -312,7 +312,7 @@ export const RULES: Rule[] = [
         actions: [],
         entry: {
           kind: 'tripCharge',
-          title: `장거리 ${Math.round(need)}km → 경로에 E-pit 한 번`,
+          title: '장거리, E-pit 경유',
           detail: `지금 배터리로 약 ${Math.round(range)}km. 밤새 100%로 두지 않고, 가는 길에 E-pit에서 한 번 채우도록 안내하고 도착 전에 배터리를 예열해요.`,
           won: sohWon(valueManwon, SOH_PER_CAPPED_SESSION),
           basis: '고충전 상태 장시간 대기 회피(완충 1회분 SOH) + 예열된 급속충전',
@@ -321,10 +321,10 @@ export const RULES: Rule[] = [
         suggestion: {
           id: 'trip',
           kind: 'tripCharge',
-          title: `가는 길에 E-pit 한 번 (${Math.round(need)}km)`,
-          detail: `지금 ${Math.round(sig.socPct ?? 0)}%로 약 ${Math.round(range)}km. 경로 중 E-pit을 추가하고 도착 전 예열해요. 완충해 두는 것보다 배터리에 좋아요.`,
+          title: '가는 길에 E-pit 한 번',
+          detail: `${Math.round(need)}km 경로에 E-pit을 넣고 미리 예열할게요.`,
           channel: 'E-pit',
-          cta: { label: 'E-pit 경유 추가', action: { kind: 'searchPlace', value: stop, reason: '장거리 경로 충전' } },
+          cta: { label: '경유 추가', action: { kind: 'searchPlace', value: stop, reason: '장거리 경로 충전' } },
         },
       }
     },
@@ -363,7 +363,7 @@ export const RULES: Rule[] = [
         actions: [{ kind: 'chargeCurrent', value: 16, reason: `외기 ${Math.round(sig.outsideTempC!)}℃ 완속 충전: 발열 감소` }],
         entry: {
           kind: 'hotCharge',
-          title: '폭염 충전 → 충전 전류 16A로 제한',
+          title: '폭염엔 천천히 충전',
           detail: `밖이 ${Math.round(sig.outsideTempC!)}℃예요. 밤사이 천천히 채워 배터리 온도를 낮게 유지해요.`,
           won: sohWon(valueManwon, SOH_PER_CAPPED_SESSION / 2),
           basis: '고온 충전은 열화를 가속: 전류를 낮춰 셀 온도 상승 억제',
@@ -381,7 +381,7 @@ export const RULES: Rule[] = [
         actions: [{ kind: 'closeWindows', reason: '주차 중 강우 감지(와이퍼) + 창문 열림' }],
         entry: {
           kind: 'rainWindows',
-          title: '비 오는데 창문 열림 → 자동으로 닫음',
+          title: '비 와서 창문 닫음',
           detail: `창문 ${sig.windowsOpen}개가 열린 채 주차돼 있었어요. 실내 시트·전장품 침수를 막았어요.`,
           won: 150_000,
           basis: '실내 습기 제거·시트 클리닝 평균 비용 [가정 15만원]',
@@ -399,7 +399,7 @@ export const RULES: Rule[] = [
         actions: [{ kind: 'lightsAuto', reason: 'P단 정차 후 전조등 켜짐 1분 이상' }],
         entry: {
           kind: 'lightsLeftOn',
-          title: '주차 후 전조등 켜짐 → 자동 모드로 전환',
+          title: '켜진 전조등 끔',
           detail: '12V 배터리가 방전되면 시동이 걸리지 않고, 반복 방전은 배터리 수명을 줄여요.',
           won: 30_000,
           basis: '12V 배터리 교체·긴급출동 비용의 기대값 [가정 3만원]',
@@ -418,7 +418,7 @@ export const RULES: Rule[] = [
         actions: [{ kind: 'blind', value: 'close', reason: `한낮 주차 외기 ${Math.round(sig.outsideTempC!)}℃` }],
         entry: {
           kind: 'sunBlind',
-          title: '한낮 땡볕 주차 → 블라인드 닫음',
+          title: '블라인드 닫음',
           detail: '직사광선은 대시보드·시트 변색의 주원인이에요. 실내 온도도 낮춰요.',
           won: 5_000,
           basis: '내장재 자외선 열화 방지 [가정 회당 5천원]',
@@ -446,10 +446,10 @@ export const RULES: Rule[] = [
         suggestion: {
           id: 'svc',
           kind: 'warningLamp',
-          title: `${names} 점검 필요`,
-          detail: '지금 고치면 가치 손실 0원. 가까운 블루핸즈를 내비에서 찾아요.',
+          title: `${names} 경고등`,
+          detail: '지금 고치면 가치 손실 0원이에요.',
           channel: '블루핸즈',
-          cta: { label: '블루핸즈 찾기', action: { kind: 'searchPlace', value: '블루핸즈', reason: `경고등 ${names}` } },
+          cta: { label: '블루핸즈', action: { kind: 'searchPlace', value: '블루핸즈', reason: `경고등 ${names}` } },
         },
       }
     },
@@ -464,7 +464,7 @@ export const RULES: Rule[] = [
         actions: [],
         entry: {
           kind: 'precondition',
-          title: `겨울 급속충전 전 배터리 예열`,
+          title: '급속충전 전 예열',
           detail: `${km} ${sig.plannedChargeKw ?? ''}kW 급속충전소. 바깥이 ${Math.round(sig.outsideTempC ?? 0)}℃라 차가운 배터리로 급속충전하면 열화가 커져요.`,
           won: sohWon(valueManwon, SOH_PER_CAPPED_SESSION),
           basis: '저온 급속충전 회피 (EV_BATTERY_CONDITIONING 텔테일 + 내비 충전 계획)',
@@ -483,7 +483,7 @@ export const RULES: Rule[] = [
         actions: [],
         entry: {
           kind: 'deepDischarge',
-          title: `배터리 ${sig.socPct}% → 충전소 안내`,
+          title: `배터리 ${sig.socPct}%, 충전 안내`,
           detail: '10% 아래 깊은 방전은 배터리 열화를 앞당겨요.',
           won: 0,
           basis: '깊은 방전 회피',

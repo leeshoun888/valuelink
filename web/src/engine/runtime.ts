@@ -55,6 +55,8 @@ export interface Snapshot {
   pub: { feed: PublicFeed; map: ValueMap | null; calls: PublicCall[]; mode: 'live' | 'snapshot' }
   /** Hyundai Motor Group revenue opportunities ValueLink created (accepted suggestions, showroom / service visits) */
   leads: { list: Lead[]; month: { channel: Channel; n: number; manwon: number }[]; monthManwon: number }
+  /** the last four weeks of sealed days, for the passport scene */
+  passportDays: { day: string; km: number; soh?: number; alert: boolean; warn: boolean }[]
   /** public-data proofs in the passport: heavy-rain exposure, recalls, battery registry */
   exposure: { alertDays: number; floodMin: number; parks: number }
 }
@@ -429,9 +431,9 @@ export class Runtime {
     this.suggestion = {
       id: 'tradeup',
       kind: 'tradeUp',
-      title: `교체 최적 시점: 인증중고차 매입 기준까지 ${m}개월`,
-      detail: `지금 보상판매하면 매입가 ${Math.round(tu.offer.tradeIn).toLocaleString()}만원${tu.offer.discount ? ` + 재구매 할인 ${tu.offer.discount}만원` : ''}${tu.offer.subsidy ? ` + 보조금 ${tu.offer.subsidy}만원 (잔여 ${tu.timing.subsidyRemaining?.toLocaleString()}대)` : ''}. 새 차로 잇는 견적을 볼까요?`,
-      cta: { label: '새 차로 잇기', sheet: 'tradeUp' },
+      title: '지금이 바꾸기 좋은 때예요',
+      detail: `새 아이오닉 5, 실 부담 ${Math.round(tu.offer.net).toLocaleString()}만원.`,
+      cta: { label: '보기', sheet: 'tradeUp' },
     }
     this.say(`지금이 차를 바꾸기 가장 좋은 시점이에요. 인증중고차 매입 기준까지 ${m}개월 남았어요.`)
   }
@@ -548,6 +550,7 @@ export class Runtime {
       pub: { feed: this.feed ?? this.pub.feed(sig.position, sig.t), map: null, calls: this.pub.calls.slice(0, 12), mode: this.pub.mode },
       exposure: this.exposure(),
       leads: this.leadSummary(sig.t),
+      passportDays: this.recentDays(),
     }
     this.snap.pub.map = valueMap(sig, this.snap.pub.feed, value.value)
     this.checkTradeUp(this.snap)
@@ -557,6 +560,17 @@ export class Runtime {
 
   snapshot() {
     return this.snap
+  }
+
+  private daysCache = { head: '', v: [] as Snapshot['passportDays'] }
+  private recentDays() {
+    const bl = this.passport.blocks
+    const head = bl.at(-1)?.hash ?? ''
+    if (this.daysCache.head === head) return this.daysCache.v
+    const tail = bl.slice(-29)
+    const v = tail.slice(1).map((b, i) => ({ day: b.day, km: Math.max(0, b.odometerKm - tail[i].odometerKm), soh: b.sohPct, alert: Boolean(b.wx?.[0]), warn: b.warnings.length > 0 }))
+    this.daysCache = { head, v }
+    return v
   }
 
   private exposureCache = { n: -1, head: '', v: { alertDays: 0, floodMin: 0, parks: 0 } }

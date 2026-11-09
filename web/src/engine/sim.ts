@@ -485,8 +485,8 @@ export function simHistory(until: number, odometerKm: number, sohNow: number): S
       auto: true,
     })
   }
-  ledger.unshift({ id: `h${id++}`, t: until - 96 * 864e5, kind: 'rainWindows', title: '비 오는데 창문 열림 → 자동으로 닫음', detail: '실내 침수를 막았어요.', won: 150_000, basis: '실내 습기 제거·시트 클리닝 평균 비용 [가정 15만원]', sdk: ['Window.setWindowPosition ✓'], say: '', auto: true })
-  ledger.unshift({ id: `h${id++}`, t: until - 41 * 864e5, kind: 'lightsLeftOn', title: '주차 후 전조등 켜짐 → 자동 모드로 전환', detail: '12V 배터리 방전을 막았어요.', won: 30_000, basis: '12V 배터리 교체·긴급출동 비용의 기대값 [가정 3만원]', sdk: ['Light.setLowBeamLightSwitch(AUTOMATIC) ✓'], say: '', auto: true })
+  ledger.unshift({ id: `h${id++}`, t: until - 96 * 864e5, kind: 'rainWindows', title: '비 와서 창문 닫음', detail: '실내 침수를 막았어요.', won: 150_000, basis: '실내 습기 제거·시트 클리닝 평균 비용 [가정 15만원]', sdk: ['Window.setWindowPosition ✓'], say: '', auto: true })
+  ledger.unshift({ id: `h${id++}`, t: until - 41 * 864e5, kind: 'lightsLeftOn', title: '켜진 전조등 끔', detail: '12V 배터리 방전을 막았어요.', won: 30_000, basis: '12V 배터리 교체·긴급출동 비용의 기대값 [가정 3만원]', sdk: ['Light.setLowBeamLightSwitch(AUTOMATIC) ✓'], say: '', auto: true })
   ledger.sort((a, b) => b.t - a.t)
   // earlier this month: fast charges routed to E-pit, a Blue Members quest reward
   const leads: Lead[] = [

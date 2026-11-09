@@ -46,28 +46,32 @@ const STEPS: { k: string; title: string; body: string; sdk: string; car: (phase:
   {
     k: 'flood',
     title: '물이 차기 전에,\n차가 먼저 피합니다.',
-    body: '행정안전부 침수흔적도에 기록된 자리에 세워 둔 차. 기상청 호우경보가 내리면 차가 그 자리의 기대손실을 계산하고, 502m 옆 침수 이력 없는 공영주차장으로 안내합니다. 실제 공공데이터 위에서 동작합니다.',
+    body: '호우경보가 내리면, 예전에 물에 잠긴 자리인지 차가 압니다. 그리고 가장 가까운 안전한 주차장으로 안내합니다.',
     sdk: '기상청 특보 × 침수흔적도 → NaviHelper.SearchPlace',
     car: (p) => ({ flood: { level: 1, safe: p >= 2, center: OFFICE, target: LOT, tiles: FLOOD_TILES } }),
   },
   {
     k: 'warning',
     title: '경고등 하나, 차 값 −2%.\n지금 고치면 0원.',
-    body: '경고등이 켜지는 순간, 어떤 부품인지 차가 보여주고 방치했을 때의 가치 손실을 원화로 알려줍니다. 가까운 블루핸즈로 바로 안내하고, 고친 날은 차량 여권에 남아 매입가가 회복됩니다.',
+    body: '어떤 부품인지 보여주고, 가까운 블루핸즈로 안내합니다. 고친 날은 여권에 남습니다.',
     sdk: 'Safety.getTelltalesInfo → NaviHelper.SearchPlace("블루핸즈")',
-    car: (p) => ({ part: (['tyre', 'lv', 'hv'] as const)[p % 3] }),
+    car: (p) => {
+      const k = (['tyre', 'lv', 'hv'] as const)[p % 3]
+      const name = { tyre: '타이어 공기압', lv: '12V 배터리', hv: 'EV 시스템' }[k]
+      return { part: k, partLabel: `${name} · 방치하면 차 값 −2%` }
+    },
   },
   {
     k: 'charge',
     title: '평소엔 80%.\n먼 길은 가는 길에 E-pit 한 번.',
-    body: '플러그를 꽂으면 차가 충전 상한을 80%로 맞춥니다. 밤새 100%로 두지 않고, 장거리 출발 때는 경로 중 빈 충전기가 있는 E-pit을 찾아 도착 전에 배터리를 예열합니다.',
+    body: '밤새 100%로 두지 않습니다. 먼 길엔 빈 E-pit을 찾아 미리 예열합니다.',
     sdk: 'EvBattery.setEvChargePercentLimit · 한국환경공단 충전기 상태',
     car: (p) => ({ charging: true, xray: true, socPct: 58 + Math.min(p, 1) * 22, chargeLimitPct: 80 }),
   },
   {
     k: 'tradeup',
     title: '가장 좋은 교체 시점,\n차가 먼저 말합니다.',
-    body: '인증중고차 매입 기준(5년·10만km)이 끝나기 4개월 전, 지역 보조금이 남아 있을 때. 신차 5,550만원 − 보조금 650만원 − 여권 매입가 3,250만원 − 재구매 할인 100만원 = 실 부담 1,550만원, 현대캐피탈 월 46만원.',
+    body: '인증중고차 매입 기준이 끝나기 전, 보조금이 남아 있을 때. 실 부담 1,550만원.',
     sdk: '차량 여권 → 인증중고차 · 신차 · 현대캐피탈',
     car: (p) => ({ newCar: p >= 1 }),
   },
@@ -104,7 +108,6 @@ function Story() {
           <StudioCar state={car} theme="dark" autoRotate interactive={false} distance={11} shiftX={0.12} shiftY={0.06} style={{ width: '100%', height: '100%' }} />
         </Suspense>
         <div className="lp-story-sdk">
-          <span>Pleos SDK</span>
           <code>{s.sdk}</code>
         </div>
       </div>
@@ -122,6 +125,44 @@ function Story() {
         ))}
       </div>
     </section>
+  )
+}
+
+/** 28 sealed days (deterministic sample): kilometres, two heavy-rain days, one warning-lamp day. */
+const PROOF_DAYS = Array.from({ length: 28 }, (_, i) => ({
+  day: `d${i}`,
+  km: 12 + Math.round(48 * Math.abs(Math.sin(i * 1.7) * Math.cos(i * 0.6))) + (i % 7 === 5 ? 60 : 0),
+  alert: i === 9 || i === 10,
+  warn: i === 21,
+}))
+
+/** The passport as objects, with the rollback demo: one block cracks and the chain after it goes dark. */
+function ProofStage() {
+  const [tamper, setTamper] = useState(false)
+  const [seen, setSeen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const io = new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && setSeen(true)), { threshold: 0.2 })
+    if (ref.current) io.observe(ref.current)
+    return () => io.disconnect()
+  }, [])
+  const car: CarState = { ...DEFAULT_CAR, sohPct: 98.1, passport: seen ? { days: PROOF_DAYS, tamper: tamper ? 17 : null } : null }
+  return (
+    <div className="lp-proof" ref={ref}>
+      <div className="lp-proof-stage">
+        {seen && (
+          <Suspense fallback={null}>
+            <StudioCar state={car} theme="light" autoRotate={false} interactive={false} azimuth={34} distance={11.5} shiftX={0.06} shiftY={0.05} style={{ width: '100%', height: '100%' }} />
+          </Suspense>
+        )}
+      </div>
+      <div className="lp-proof-ctl">
+        <button className="pill secondary" onClick={() => setTamper(!tamper)}>
+          {tamper ? '원래대로' : '주행거리 5,000km 되돌려 보기'}
+        </button>
+        <p>{tamper ? '조작은 숨길 수 없습니다.' : '높이는 그날의 주행거리입니다.'}</p>
+      </div>
+    </div>
   )
 }
 
@@ -174,16 +215,8 @@ export default function Landing() {
           4,128만원
         </h2>
         <p className="lp-sub" data-reveal>
-          연식, 주행거리, <b>차가 직접 잰 배터리 건강도</b>, 경고등, 운전 습관, 차량 여권.
-          <br />
-          무엇이 가치를 움직이는지, 매일 원화로 보여줍니다.
+          무엇이 가치를 움직이는지, 매일 원화로.
         </p>
-        <div className="lp-chips" data-reveal>
-          <span>배터리 건강도 +2.9%</span>
-          <span>주행거리 −0.6%</span>
-          <span>운전 습관 −1.1%</span>
-          <span>차량 여권 +1.5%</span>
-        </div>
       </section>
 
       <Story />
@@ -199,7 +232,7 @@ export default function Landing() {
             차가 직접 잰 숫자.
           </h2>
           <p className="lp-sub" data-reveal>
-            현재 배터리 용량(EV_CURRENT_BATTERY_CAPACITY)을 신차 용량으로 나눠, 차가 보고하는 그대로의 건강도를 씁니다. 전기차의 자산 가치를 가장 크게 움직이는 숫자입니다.
+            전기차의 가치를 가장 크게 움직이는 숫자를, 차가 보고하는 그대로.
           </p>
           <div className="lp-stat" data-reveal>
             <b className="num">99.5%</b>
@@ -210,7 +243,7 @@ export default function Landing() {
             </span>
           </div>
         </div>
-        <Render name="xray_dark" alt="차체를 투과해 보이는 배터리 팩" className="lp-battery-img" />
+        <Render name="charge_xray" alt="투명한 차체 아래 배터리 팩, 버스바, 고전압 배선과 전후 모터" className="lp-battery-img" />
       </section>
 
       <section className="lp-value lp-city" id="city">
@@ -223,19 +256,17 @@ export default function Landing() {
           도시의 데이터로.
         </h2>
         <p className="lp-sub" data-reveal>
-          기상청, 행정안전부, 경찰청, 도로교통공단, 한국환경공단의 공공데이터를 차 안의 신호에 겹칩니다. 정확한 위치 대신 기상청 5km 격자와 1km 지도 타일만 밖으로 나갑니다.
+          공공데이터를 차의 신호에 겹칩니다. 정확한 위치는 차 밖으로 나가지 않습니다.
         </p>
         <div className="lp-city-visual" data-reveal>
           <Render name="flood_dark" alt="실제 침수흔적도 위에 선 아이오닉 5, 바퀴 높이까지 찬 물과 안전한 공영주차장 표시" className="lp-city-img" />
         </div>
         <div className="lp-tiles">
           {[
-            ['비가 오기 30분 전, 창문이 먼저', '기상청 초단기예보로 비 소식을 먼저 받고, 열린 창문을 닫습니다.'],
-            ['절도 잦은 골목이면, 문 잠금', '경찰청 범죄주의구간(절도) 위에 세우면 문을 잠그고 귀중품을 안내합니다.'],
-            ['결빙 사고다발지 600m 전', '도로교통공단 사고다발지 앞에서 먼저 감속을 안내합니다.'],
-            ['빈 E-pit 충전기로', '한국환경공단 실시간 상태로 지금 비어 있는 E-pit을 찾습니다.'],
-            ['폭염 속 충전은 천천히', '바깥이 30℃를 넘으면 충전 전류를 낮춰 셀 온도를 지킵니다.'],
-            ['켜두고 내린 전조등', 'P단 1분 뒤에도 켜져 있으면 끄고, 12V 방전을 막습니다.'],
+            ['비 오기 30분 전', '열린 창문을 닫습니다.'],
+            ['절도가 잦은 골목', '문을 잠급니다.'],
+            ['결빙 사고다발지 앞', '속도를 줄이라고 알립니다.'],
+            ['배터리가 부족할 때', '빈 E-pit으로 안내합니다.'],
           ].map(([t, d]) => (
             <div key={t} className="lp-tile" data-reveal>
               <h4>{t}</h4>
@@ -255,18 +286,9 @@ export default function Landing() {
           위조할 수 없는 여권.
         </h2>
         <p className="lp-sub" data-reveal>
-          주행거리, 바퀴 회전 수로 잰 독립 거리, 배터리 건강도, 경고등과 정비, 충전 습관, 그리고 호우특보 때 침수 구역에 머문 시간까지. 하루 한 블록씩 이전 블록의 SHA-256을 품고 이어집니다. 주행거리를 되돌리면 사슬이 끊기고, 침수차가 아니라는 사실은 데이터로 남습니다.
+          하루 한 블록, 이전 블록에 잠겨 이어집니다. 주행거리를 되돌리면 사슬이 끊깁니다.
         </p>
-        <div className="lp-chain" data-reveal>
-          {['2025.03.14', '2025.09.02', '2026.04.21', '오늘'].map((d, i) => (
-            <div key={d} className="lp-block">
-              <small>#{[0, 172, 403, 606][i]}</small>
-              <b>{d}</b>
-              <span className="num">{['0', '9,240', '17,880', '24,812'][i]} km</span>
-              <code>{['0000…', '8f3a…', 'c41e…', '2b97…'][i]}</code>
-            </div>
-          ))}
-        </div>
+        <ProofStage />
       </section>
 
       <section className="lp-value" id="value">
@@ -274,13 +296,13 @@ export default function Landing() {
           잇는다
         </p>
         <h2 data-reveal>현대차그룹으로 돌아오는 가치.</h2>
+
         <div className="lp-tiles">
           {[
-            ['현대 인증중고차', '관리 이력이 검증된 자사 차량을 직접 매입. 좋은 매물을 먼저 확보합니다.'],
-            ['신차 재구매', '가치 곡선이 꺾이기 직전, 최적의 교체 시점에 보상판매로 잇습니다.'],
-            ['블루핸즈', '“지금 고치면 가치 손실 0원.” 경고등이 정비 예약으로 이어집니다.'],
-            ['현대캐피탈', '관리 점수가 높은 차는 리스 잔존가치 우대. 반납 차량 품질이 오릅니다.'],
-            ['Pleos App Market', '상세 리포트와 시세 알림 구독. 렌터카·리스 플릿은 차량당 과금.'],
+            ['현대 인증중고차', '검증된 자사 차량을 먼저 매입합니다.'],
+            ['신차 재구매', '가장 좋은 때, 보상판매로 잇습니다.'],
+            ['블루핸즈', '경고등이 정비 예약이 됩니다.'],
+            ['현대캐피탈', '관리 잘 된 차는 잔존가치가 높습니다.'],
           ].map(([t, d]) => (
             <div key={t} className="lp-tile" data-reveal>
               <h4>{t}</h4>

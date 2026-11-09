@@ -5,7 +5,6 @@
 import type { Snapshot } from '../engine/runtime'
 import { useStore } from '../state/store'
 import { won } from '../engine/valuation'
-import { clock } from '../ui/format'
 
 const W = 640
 const H = 560
@@ -147,7 +146,6 @@ export function ValueMapSheet({ snap, onClose }: { snap: Snapshot; onClose: () =
                 <div>
                   <b>{x.label}</b>
                   <span>{x.detail}</span>
-                  <small>{x.source}</small>
                 </div>
                 {x.loss > 0 && <em className="num">−{won(x.p * x.loss)}</em>}
               </li>
@@ -175,18 +173,7 @@ export function ValueMapSheet({ snap, onClose }: { snap: Snapshot; onClose: () =
               </button>
             </div>
           )}
-          <div className="jg-vm-src">
-            <p>
-              {snap.pub.mode === 'live' ? `공공데이터 실시간 · ${f.region}` : f.overlays?.length ? '공공데이터 실데이터 캡처 (날씨·특보는 시연 시나리오)' : '공공데이터 스냅샷'} · 기상청 격자 {f.grid.nx},{f.grid.ny} · 지도 1km 타일 (정확한 위치는 차 밖으로 나가지 않아요)
-            </p>
-            <ul>
-              {snap.pub.calls.slice(0, 4).map((c, i) => (
-                <li key={i}>
-                  <span className="num">{clock(c.t)}</span> {c.api} <em>{c.result}</em>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <p className="jg-vm-src">{snap.pub.mode === 'live' ? '공공데이터 실시간' : '공공데이터'} · 기상청 · 행정안전부 · 경찰청</p>
           <button className="pill secondary" onClick={onClose}>
             닫기
           </button>

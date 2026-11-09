@@ -26,7 +26,7 @@ if (!KEY || !SAFEMAP) {
 }
 
 export const TILE_DEG = 0.01
-const TILE_PX = 512
+const TILE_PX = { flood: 1024, crime: 512 } // flood polygons need the detail, the density map does not
 const LAYERS = { flood: 'IF_0092_WMS', crime: 'IF_0084_WMS' }
 const cache = new Map()
 
@@ -114,7 +114,7 @@ async function tile(layer, tx, ty) {
   const minLng = tx * TILE_DEG
   const minLat = ty * TILE_DEG
   const bbox = `${minLng},${minLat},${minLng + TILE_DEG},${minLat + TILE_DEG}`
-  const r = await fetch(`https://www.safemap.go.kr/openapi2/${LAYERS[layer]}?serviceKey=${SAFEMAP}&srs=EPSG:4326&bbox=${bbox}&format=image/png&width=${TILE_PX}&height=${TILE_PX}&transparent=TRUE`)
+  const r = await fetch(`https://www.safemap.go.kr/openapi2/${LAYERS[layer]}?serviceKey=${SAFEMAP}&srs=EPSG:4326&bbox=${bbox}&format=image/png&width=${TILE_PX[layer]}&height=${TILE_PX[layer]}&transparent=TRUE`)
   if (!r.ok || !(r.headers.get('content-type') ?? '').includes('png')) throw new Error(`safemap ${r.status}`)
   return Buffer.from(await r.arrayBuffer())
 }

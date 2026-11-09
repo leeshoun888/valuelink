@@ -98,11 +98,11 @@ button {
   white-space: nowrap;
 }
 .pill.primary {
-  background: var(--blue);
+  background: #1d1d1f;
   color: #fff;
 }
 .pill.primary:hover {
-  background: var(--blue-2);
+  background: #000;
 }
 .pill.secondary {
   background: var(--fill);
@@ -112,7 +112,7 @@ button {
   background: rgba(120, 120, 128, 0.18);
 }
 .pill.link {
-  color: var(--blue);
+  color: inherit;
   padding: 0 4px;
   height: auto;
 }
@@ -148,4 +148,40 @@ button {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* 3D callout beside a highlighted part (Apple product-annotation style) */
+.cv-callout {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: 10px;
+  transform: translate(calc(-100% + 6px), -120%);
+  white-space: nowrap;
+  font-family: var(--sans, system-ui);
+}
+.cv-callout i {
+  width: 64px;
+  height: 1.5px;
+  background: linear-gradient(270deg, #ff9f0a, rgba(255, 159, 10, 0.2));
+}
+.cv-callout span {
+  padding: 8px 14px;
+  border-radius: 99px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1d1d1f;
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 0 0 1px rgba(255, 159, 10, 0.35), 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+/* dark pages: white pill, black type */
+.lp .pill.primary {
+  background: #f5f5f7;
+  color: #000;
+}
+.lp .pill.primary:hover {
+  background: #fff;
 }

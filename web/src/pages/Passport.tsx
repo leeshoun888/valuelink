@@ -112,6 +112,20 @@ export default function PassportPage() {
             {snap.links.cpo.eligible ? `매입 기준(5년·10만km·무사고)까지 ${Math.floor(snap.links.cpo.monthsLeft / 12)}년 ${snap.links.cpo.monthsLeft % 12}개월 · ${snap.links.cpo.kmLeft.toLocaleString()}km` : '매입 기준 밖'}
           </span>
         </div>
+        <div className="pp-card pub">
+          <small>침수 노출 · 공공데이터 교차 검증</small>
+          <b className="num">호우특보 {snap.exposure.alertDays}일 · 침수흔적 구역 체류 {snap.exposure.floodMin}분</b>
+          <span>기상청 기상특보 × 행정안전부 침수흔적도 × 주차 기록 {snap.exposure.parks.toLocaleString()}회. 날마다 해시 사슬에 봉인</span>
+        </div>
+        <div className="pp-card pub">
+          <small>리콜 · 배터리 이력</small>
+          <b>
+            {snap.pub.feed.recalls.length ? `리콜 ${snap.pub.feed.recalls.length}건 · ${snap.pub.feed.recalls.every((r) => r.fixedAt) ? '모두 조치 완료' : '미조치 있음'}` : '해당 리콜 없음'}
+          </b>
+          <span>
+            {snap.pub.feed.recalls.map((r) => r.title).join(', ')} (국토교통부 리콜정보) · 배터리 이력관리 {snap.pub.feed.batteryRegistry ? '등록' : '미확인'} (2025.2.17 시행)
+          </span>
+        </div>
         <div className="pp-card">
           <small>여권 기준 예상 매입가</small>
           <b className="num">{snap.tradeIn ? manwon(snap.tradeIn.price) : manwon(snap.value.value)}</b>

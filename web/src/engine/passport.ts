@@ -16,6 +16,8 @@ export interface PassportRecord {
   fastCharges: number
   guards: number
   harsh: number
+  /** public-data exposure: [heavy-rain warning that day 0|1, minutes in a flood-trace zone under it, parks] */
+  wx?: [number, number, number]
 }
 
 export interface Block extends PassportRecord {
@@ -52,7 +54,18 @@ export class Passport {
     return this.append(r)
   }
 
+  private cache: { ref: Block[]; key: string; check: PassportCheck } | null = null
+
+  /** Full re-verification is ~600 SHA-256; reuse it until a block is added, replaced or the chain swapped. */
   verify(): PassportCheck {
+    const key = `${this.blocks.length}|${this.blocks[0]?.hash ?? ''}|${this.blocks.at(-1)?.hash ?? ''}`
+    if (this.cache && this.cache.ref === this.blocks && this.cache.key === key) return this.cache.check
+    const check = this.verifyFull()
+    this.cache = { ref: this.blocks, key, check }
+    return check
+  }
+
+  verifyFull(): PassportCheck {
     let chainOk = true
     let mileageOk = true
     let worstGap = 0
@@ -79,7 +92,9 @@ export class Passport {
 }
 
 function canonical(r: PassportRecord) {
-  return JSON.stringify([r.day, +r.odometerKm.toFixed(1), +r.wheelKm.toFixed(1), r.sohPct === undefined ? null : +r.sohPct.toFixed(2), r.warnings, r.charges, r.fastCharges, r.guards, r.harsh])
+  const base: unknown[] = [r.day, +r.odometerKm.toFixed(1), +r.wheelKm.toFixed(1), r.sohPct === undefined ? null : +r.sohPct.toFixed(2), r.warnings, r.charges, r.fastCharges, r.guards, r.harsh]
+  if (r.wx) base.push(r.wx) // blocks written before public data keep their original hash
+  return JSON.stringify(base)
 }
 
 // ---- SHA-256 (synchronous, small: crypto.subtle is async and missing on plain-http previews) -------------

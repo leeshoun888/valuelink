@@ -93,7 +93,7 @@ class GleoReceiver : BroadcastReceiver() {
         const val ACTION_RESPONSE = "ai.pleos.playground.intent.action.APP_ACTION_RESPONSE"
         const val EXTRA_PARAM = "ACTION_PARAM"
         const val REPLY_DEADLINE_MS = 5_500L // Gleo times out at 7 s
-        val FUNCTIONS = setOf("GET_CAR_VALUE", "GET_BATTERY_HEALTH", "SET_CHARGE_LIMIT", "FIND_SERVICE_CENTER", "GET_TRADE_IN_QUOTE")
+        val FUNCTIONS = setOf("GET_CAR_VALUE", "GET_BATTERY_HEALTH", "SET_CHARGE_LIMIT", "FIND_SERVICE_CENTER", "GET_TRADE_IN_QUOTE", "GET_PARKING_RISK")
         val STATUSES = setOf("success", "asking", "fail")
         val MODES = setOf("voice", "beep", "silent")
     }

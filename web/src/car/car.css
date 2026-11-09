@@ -24,8 +24,9 @@
   --c-sep: rgba(29, 29, 31, 0.08);
   --c-accent: #0071e3;
   --c-attn: #ff9f0a;
+  --c-risk: #ff3b30;
   --g-bg: rgba(255, 255, 255, 0.5);
-  --g-bg-solid: rgba(255, 255, 255, 0.86);
+  --g-bg-solid: rgba(255, 255, 255, 0.97);
   --g-edge: rgba(255, 255, 255, 0.75);
   --g-shadow: 0 1px 1px rgba(0, 0, 0, 0.02), 0 20px 50px rgba(0, 0, 0, 0.07);
   --scene: radial-gradient(90% 80% at 50% 62%, #ffffff 0%, #f1f1f3 55%, #e3e3e8 100%);
@@ -48,8 +49,9 @@
   --c-fill: rgba(245, 245, 247, 0.08);
   --c-sep: rgba(245, 245, 247, 0.1);
   --c-accent: #2997ff;
+  --c-risk: #ff453a;
   --g-bg: rgba(38, 38, 40, 0.42);
-  --g-bg-solid: rgba(28, 28, 30, 0.9);
+  --g-bg-solid: rgba(28, 28, 30, 0.97);
   --g-edge: rgba(255, 255, 255, 0.14);
   --g-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
   --scene: radial-gradient(90% 80% at 50% 64%, #2a2a2d 0%, #111113 50%, #000 100%);
@@ -857,12 +859,16 @@
 .jg-tu {
   margin-top: 26px;
   display: flex;
-  align-items: center;
-  gap: 16px;
+  align-items: stretch;
+  gap: 10px;
+}
+.jg-tu > span {
+  align-self: center;
 }
 .jg-tu > div {
   flex: 1;
-  padding: 20px 22px;
+  min-width: 0;
+  padding: 18px 18px;
   border-radius: 24px;
   background: var(--c-fill);
 }
@@ -880,8 +886,9 @@
 .jg-tu b {
   display: block;
   margin-top: 6px;
-  font-size: 34px;
+  font-size: 30px;
   letter-spacing: -0.03em;
+  white-space: nowrap;
 }
 .jg-tu .net {
   background: var(--c-text);
@@ -933,4 +940,385 @@
 }
 .jg-app.is-portrait .jg-tu > span {
   display: none;
+}
+
+/* parking safety chip (Value Map) */
+.jg-linkrow span.risk {
+  cursor: pointer;
+}
+.jg-linkrow span.risk i {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 8px;
+  border-radius: 50%;
+  vertical-align: 1px;
+  background: var(--c-text);
+}
+.jg-linkrow span.risk.lv-주의 i {
+  background: var(--c-attn);
+}
+.jg-linkrow span.risk.lv-위험 i {
+  background: var(--c-risk);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--c-risk) 22%, transparent);
+}
+.jg-linkrow span.risk.lv-위험 b {
+  color: var(--c-risk);
+}
+
+/* 밸류맵 sheet */
+.jg-sheet.jg-vm {
+  width: 1480px;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 44px;
+  padding: 40px 44px 40px 40px;
+}
+.jg-vm-map {
+  flex: none;
+  position: relative;
+}
+.jg-vm-map svg {
+  display: block;
+  border-radius: 28px;
+}
+.jg-vm .plate {
+  fill: #eeeef0;
+}
+.jg-app[data-theme='dark'] .jg-vm .plate {
+  fill: #1f1f22;
+}
+.jg-vm .grid {
+  fill: none;
+  stroke: var(--c-sep);
+  stroke-width: 1;
+}
+.jg-vm .road {
+  stroke: #fff;
+  stroke-width: 18;
+  stroke-linecap: round;
+}
+.jg-vm .road.thin {
+  stroke-width: 9;
+}
+.jg-vm .zone {
+  stroke-width: 2;
+}
+.jg-vm .zone.flood {
+  fill: color-mix(in srgb, var(--c-accent) 14%, transparent);
+  stroke: color-mix(in srgb, var(--c-accent) 55%, transparent);
+}
+.jg-vm .zone.theft {
+  fill: color-mix(in srgb, var(--c-text) 5%, transparent);
+  stroke: var(--c-3);
+  stroke-dasharray: 8 7;
+}
+.jg-vm .zone.accident {
+  fill: color-mix(in srgb, var(--c-attn) 16%, transparent);
+  stroke: color-mix(in srgb, var(--c-attn) 60%, transparent);
+}
+.jg-vm .zlabel,
+.jg-vm .lot .lname {
+  paint-order: stroke;
+  stroke: #eeeef0;
+  stroke-width: 5px;
+  stroke-linejoin: round;
+}
+.jg-app[data-theme='dark'] .jg-vm .zlabel,
+.jg-app[data-theme='dark'] .jg-vm .lot .lname {
+  stroke: #1f1f22;
+}
+.jg-vm .zlabel {
+  font-size: 17px;
+  font-weight: 600;
+  fill: var(--c-2);
+}
+.jg-vm .zlabel.flood {
+  fill: var(--c-accent);
+}
+.jg-vm .route {
+  stroke: var(--c-accent);
+  stroke-width: 4;
+  stroke-dasharray: 2 10;
+  stroke-linecap: round;
+  fill: none;
+}
+.jg-vm .lot rect {
+  fill: var(--g-bg-solid);
+  stroke: var(--c-3);
+  stroke-width: 1.5;
+}
+.jg-vm .lot text {
+  font-size: 17px;
+  font-weight: 700;
+  fill: var(--c-2);
+}
+.jg-vm .lot .lname {
+  font-size: 15px;
+  font-weight: 600;
+}
+.jg-vm .lot.best rect {
+  fill: var(--c-accent);
+  stroke: none;
+}
+.jg-vm .lot.best text:not(.lname) {
+  fill: #fff;
+}
+.jg-vm .lot.best .lname {
+  fill: var(--c-accent);
+}
+.jg-vm .car .dot {
+  fill: var(--c-text);
+  stroke: var(--g-bg-solid);
+  stroke-width: 5;
+}
+.jg-vm .car .halo {
+  fill: color-mix(in srgb, var(--c-text) 12%, transparent);
+}
+.jg-vm .car.lv-주의 .dot {
+  fill: var(--c-attn);
+}
+.jg-vm .car.lv-주의 .halo {
+  fill: color-mix(in srgb, var(--c-attn) 20%, transparent);
+}
+.jg-vm .car.lv-위험 .dot {
+  fill: var(--c-risk);
+}
+.jg-vm .car.lv-위험 .halo {
+  fill: color-mix(in srgb, var(--c-risk) 22%, transparent);
+  animation: vm-pulse 1.8s var(--ease) infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+@keyframes vm-pulse {
+  50% {
+    transform: scale(1.35);
+    opacity: 0.4;
+  }
+}
+.jg-vm-chips {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  display: flex;
+  gap: 8px;
+}
+.jg-vm-chips span {
+  padding: 7px 14px;
+  border-radius: 99px;
+  background: var(--g-bg-solid);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--c-2);
+}
+.jg-vm-chips i {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  margin-right: 7px;
+  border-radius: 50%;
+}
+.jg-vm-chips i.flood {
+  background: var(--c-accent);
+}
+.jg-vm-chips i.theft {
+  border: 2px dashed var(--c-3);
+}
+.jg-vm-chips i.accident {
+  background: var(--c-attn);
+}
+.jg-vm-chips i.lotk {
+  border-radius: 3px;
+  background: var(--c-3);
+}
+.jg-vm-side {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.jg-vm-score {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+.jg-vm-score > b {
+  font-size: 112px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+.jg-vm-score > b.lv-주의 {
+  color: var(--c-attn);
+}
+.jg-vm-score > b.lv-위험 {
+  color: var(--c-risk);
+}
+.jg-vm-score .lvl {
+  display: inline-block;
+  padding: 5px 14px;
+  border-radius: 99px;
+  font-size: 20px;
+  font-weight: 700;
+  background: var(--c-fill);
+}
+.jg-vm-score .lvl.lv-주의 {
+  color: var(--c-attn);
+  background: color-mix(in srgb, var(--c-attn) 14%, transparent);
+}
+.jg-vm-score .lvl.lv-위험 {
+  color: var(--c-risk);
+  background: color-mix(in srgb, var(--c-risk) 14%, transparent);
+}
+.jg-vm-score small {
+  display: block;
+  margin-top: 8px;
+  font-size: 21px;
+  color: var(--c-2);
+}
+.jg-vm-factors {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.jg-vm-factors li {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 0;
+  border-top: 1px solid var(--c-sep);
+}
+.jg-vm-factors li.none {
+  font-size: 21px;
+  color: var(--c-2);
+}
+.jg-vm-factors b {
+  display: block;
+  font-size: 22px;
+}
+.jg-vm-factors span {
+  display: block;
+  font-size: 18px;
+  color: var(--c-2);
+}
+.jg-vm-factors small {
+  display: block;
+  margin-top: 3px;
+  font-size: 15px;
+  color: var(--c-3);
+}
+.jg-vm-factors em {
+  font-style: normal;
+  font-weight: 700;
+  font-size: 22px;
+  white-space: nowrap;
+}
+.jg-vm-best {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 22px;
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--c-accent) 10%, transparent);
+}
+.jg-vm-best small {
+  display: block;
+  font-size: 16px;
+  color: var(--c-2);
+}
+.jg-vm-best > div > b {
+  display: block;
+  font-size: 26px;
+  margin: 2px 0;
+}
+.jg-vm-best span {
+  font-size: 18px;
+  color: var(--c-2);
+}
+.jg-vm-best .pill {
+  margin: 0 !important;
+}
+.jg-vm-src {
+  margin-top: auto;
+}
+.jg-vm-src p {
+  margin: 0 0 6px;
+  font-size: 15px;
+  color: var(--c-3);
+}
+.jg-vm-src ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 15px;
+  color: var(--c-2);
+}
+.jg-vm-src li {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.jg-vm-src em {
+  font-style: normal;
+  color: var(--c-3);
+}
+.jg-app.is-portrait .jg-sheet.jg-vm {
+  width: 780px;
+  flex-direction: column;
+  max-height: 1120px;
+  overflow: auto;
+}
+.jg-app.is-portrait .jg-vm-map svg {
+  width: 700px;
+  height: auto;
+}
+
+/* trade-up timing (public data) */
+.jg-tu-timing {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 16px 0 0;
+}
+.jg-tu-timing span {
+  padding: 8px 16px;
+  border-radius: 99px;
+  font-size: 19px;
+  color: var(--c-2);
+  background: color-mix(in srgb, var(--c-attn) 12%, transparent);
+}
+.jg-tu-timing b {
+  color: var(--c-text);
+}
+
+.jg-app[data-theme='dark'] .jg-vm .road {
+  stroke: #2e2e32;
+}
+
+.jg-links section.wide {
+  grid-column: 1 / -1;
+}
+.jg-leads {
+  list-style: none;
+  margin: 8px 0 6px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.jg-leads li {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 8px 16px;
+  border-radius: 99px;
+  background: var(--c-fill);
+  font-size: 19px;
+}
+.jg-leads b {
+  font-size: 19px;
 }

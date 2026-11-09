@@ -6,10 +6,12 @@
 import { SIM_CAPS, type BusEvent, type VehicleBus } from './bus'
 import type { ChargeSession } from './battery'
 import type { LedgerEntry } from './guard'
+import type { Lead } from './runtime'
 import type { Block } from './passport'
 import { Passport } from './passport'
 import { dayKey } from './runtime'
 import type { VehicleAction, VehicleSignals } from './types'
+import { PLACES, ScenarioPublicSource } from './publicdata'
 
 const PACK_KWH = 77.4
 const KM_PER_KWH = 5.6
@@ -19,6 +21,15 @@ interface Leg {
   name: string
   km: number
   cruiseKph: number
+  to?: [number, number]
+}
+
+/** Where each scripted place is (Seoul Gangnam). */
+const PLACE_POS: Record<string, [number, number]> = {
+  '회사 주차장': PLACES.office,
+  '공영주차빌딩 A': PLACES.garage,
+  '블루핸즈 강남점': PLACES.service,
+  집: PLACES.home,
 }
 
 interface Step {
@@ -37,7 +48,9 @@ export class SimVehicle implements VehicleBus {
   readonly kind = 'sim' as const
   sig: VehicleSignals
   private start: number
-  private leg: (Leg & { done: number }) | null = null
+  private leg: (Leg & { done: number; from: [number, number] }) | null = null
+  /** public data the script controls (weather, warnings); the runtime reads it like the live source */
+  pub = new ScenarioPublicSource()
   private steps: Step[]
   private nextStep = 0
   private listeners = new Set<(e: BusEvent) => void>()
@@ -83,7 +96,7 @@ export class SimVehicle implements VehicleBus {
       outsideTempC: 21,
       blindClosed: false,
       doorsLocked: true,
-      position: [127.0276, 37.4979],
+      position: PLACES.home,
       driveMode: 'normal',
     }
     this.steps = DAY
@@ -152,7 +165,7 @@ export class SimVehicle implements VehicleBus {
   // ---- scenario controls (console) ----------------------------------------------------------------------
 
   drive(leg: Leg) {
-    this.leg = { ...leg, done: 0 }
+    this.leg = { ...leg, to: leg.to ?? PLACE_POS[leg.name], done: 0, from: this.sig.position ?? PLACES.home }
     this.sig.gear = 'D'
     this.sig.parkingBrake = false
     this.sig.doorsLocked = true
@@ -165,6 +178,7 @@ export class SimVehicle implements VehicleBus {
     this.sig.gear = 'P'
     this.sig.parkingBrake = true
     this.sig.placeName = place
+    if (PLACE_POS[place]) this.sig.position = PLACE_POS[place]
     this.sig.routeRemainingKm = undefined
     this.sig.routeEtaMin = undefined
     this.sig.navStatus = undefined
@@ -236,6 +250,10 @@ export class SimVehicle implements VehicleBus {
       s.routeRemainingKm = Math.max(0, leg.km - leg.done)
       s.routeEtaMin = (s.routeRemainingKm / Math.max(20, leg.cruiseKph)) * 60
       s.navStatus = 'ROUTE_DRIVE'
+      if (leg.to) {
+        const f = Math.min(1, leg.done / leg.km)
+        s.position = [leg.from[0] + (leg.to[0] - leg.from[0]) * f, leg.from[1] + (leg.to[1] - leg.from[1]) * f]
+      }
       if (leg.done >= leg.km) this.park(leg.name)
     }
 
@@ -274,7 +292,7 @@ const DAY: Step[] = [
   { at: 13, label: '08:03 급출발 2회', run: (s) => s.harsh(2) },
   {
     at: 34,
-    label: '08:24 회사 도착, 전조등 켜진 채 주차',
+    label: '08:24 회사 지상주차장 (침수흔적 구역), 전조등 켜진 채 주차',
     run: (s) => {
       s.park('회사 주차장')
       s.sig.headlightsOn = true
@@ -283,21 +301,49 @@ const DAY: Step[] = [
   },
   {
     at: 220,
-    label: '11:30 한낮 29℃ 땡볕',
+    label: '11:30 한낮 29℃, 자외선 매우 높음',
     run: (s) => {
       s.sig.outsideTempC = 29
       s.sig.headlightsOn = false
+      s.pub.setWeather({ tempC: 29, uv: 9 })
     },
   },
   {
+    at: 400,
+    label: '14:30 기상청 예보: 30분 뒤 소나기',
+    run: (s) => s.pub.setWeather({ pty: 0, rainInMin: 30, pop: 80, uv: 4, tempC: 25 }),
+  },
+  {
     at: 430,
-    label: '15:00 소나기, 창문 하나 열림',
+    label: '15:00 소나기 시작',
     run: (s) => {
       s.sig.raining = true
       s.sig.outsideTempC = 23
+      s.pub.setWeather({ pty: 1, rainInMin: undefined, pop: 100, rain1hMm: 18, tempC: 23 })
     },
   },
-  { at: 520, label: '16:30 비 그침', run: (s) => (s.sig.raining = false) },
+  {
+    at: 450,
+    label: '15:20 호우경보 발령 (서울 동남권)',
+    run: (s) => {
+      s.pub.setWeather({ rain1hMm: 52 })
+      s.pub.setAlert('호우경보', s.sig.t)
+    },
+  },
+  {
+    at: 470,
+    label: '15:40 공영주차빌딩 A 4층으로 이동',
+    run: (s) => s.drive({ name: '공영주차빌딩 A', km: 0.6, cruiseKph: 18 }),
+  },
+  {
+    at: 540,
+    label: '16:50 비 그침, 특보 해제',
+    run: (s) => {
+      s.sig.raining = false
+      s.pub.clear()
+      s.pub.setWeather({ tempC: 22 })
+    },
+  },
   {
     at: 640,
     label: '18:30 퇴근 주행',
@@ -319,9 +365,10 @@ const DAY: Step[] = [
   },
   {
     at: 720,
-    label: '19:50 집 도착, 완속 충전 시작 (상한 100%)',
+    label: '19:50 집 도착 (범죄 주의 구간), 완속 충전 (상한 100%)',
     run: (s) => {
       s.park('집')
+      s.sig.doorsLocked = false
       s.sig.chargeLimitPct = 100
       s.plugIn(7)
     },
@@ -345,6 +392,12 @@ export function dayAt(h: number, m: number) {
   return d.getTime()
 }
 
+function wxOf(t: number, rnd: () => number): [number, number, number] {
+  const m = new Date(t).getMonth()
+  const alert = m >= 6 && m <= 7 && rnd() < 0.09 ? 1 : 0
+  return [alert, alert && rnd() < 0.35 ? Math.round(8 + rnd() * 14) : 0, 2 + Math.round(rnd() * 2)]
+}
+
 function mulberry(a: number) {
   return () => {
     a |= 0
@@ -361,6 +414,7 @@ export interface SimHistory {
   blocks: Block[]
   ledger: LedgerEntry[]
   sessions: ChargeSession[]
+  leads: Lead[]
 }
 
 /** About 20 months of daily passport blocks, last month's charge sessions and the guard's past work. */
@@ -387,6 +441,8 @@ export function simHistory(until: number, odometerKm: number, sohNow: number): S
       fastCharges: d % 17 === 0 ? 1 : 0,
       guards: d % 3 === 0 ? 1 : 0,
       harsh: Math.round(rnd() * 2),
+      // monsoon days with a heavy-rain warning: the car was moved out of flood-trace zones within minutes
+      wx: wxOf(t, rnd),
     })
   }
   // rescale so the last block meets today's odometer exactly
@@ -430,5 +486,11 @@ export function simHistory(until: number, odometerKm: number, sohNow: number): S
   ledger.unshift({ id: `h${id++}`, t: until - 96 * 864e5, kind: 'rainWindows', title: '비 오는데 창문 열림 → 자동으로 닫음', detail: '실내 침수를 막았어요.', won: 150_000, basis: '실내 습기 제거·시트 클리닝 평균 비용 [가정 15만원]', sdk: ['Window.setWindowPosition ✓'], say: '', auto: true })
   ledger.unshift({ id: `h${id++}`, t: until - 41 * 864e5, kind: 'lightsLeftOn', title: '주차 후 전조등 켜짐 → 자동 모드로 전환', detail: '12V 배터리 방전을 막았어요.', won: 30_000, basis: '12V 배터리 교체·긴급출동 비용의 기대값 [가정 3만원]', sdk: ['Light.setLowBeamLightSwitch(AUTOMATIC) ✓'], say: '', auto: true })
   ledger.sort((a, b) => b.t - a.t)
-  return { blocks: blocks.blocks, ledger, sessions }
+  // earlier this month: fast charges routed to E-pit, a Blue Members quest reward
+  const leads: Lead[] = [
+    { t: until - 4 * 864e5, channel: 'E-pit', title: '장거리 급속충전 → E-pit (빈 충전기)', manwon: 2.5 },
+    { t: until - 2 * 864e5, channel: 'E-pit', title: '배터리 예열 후 E-pit 충전', manwon: 2.5 },
+    { t: until - 1 * 864e5, channel: '블루멤버스', title: '80% 충전 퀘스트 달성', manwon: 1 },
+  ].filter((l) => new Date(l.t).getMonth() === new Date(until).getMonth()) as Lead[]
+  return { blocks: blocks.blocks, ledger, sessions, leads }
 }

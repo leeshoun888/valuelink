@@ -87,6 +87,8 @@ export default function Console() {
 
         <section className="mc-panels">
           <ValueChart snap={snap} />
+          <PublicPanel snap={snap} />
+          <LeadsPanel snap={snap} />
           <SdkLog snap={snap} />
         </section>
       </main>
@@ -154,6 +156,10 @@ function Triggers() {
       >
         겨울 급속충전 경로
       </button>
+      <button onClick={t(() => sim.pub.setWeather({ pty: 0, rainInMin: 30, pop: 80 }))}>기상청: 30분 뒤 비 예보</button>
+      <button onClick={t(() => (sim.pub.setWeather({ pty: 1, rainInMin: undefined, pop: 100, rain1hMm: 52 }), sim.pub.setAlert('호우경보', sim.sig.t)))}>기상청: 호우경보 발령</button>
+      <button onClick={t(() => sim.pub.setAlert('우박', sim.sig.t))}>기상청: 우박 특보</button>
+      <button onClick={t(() => sim.pub.clear())}>특보 해제</button>
       <button className="strong" onClick={t(() => useStore.getState().previewTradeUp())}>
         교체 시점 미리보기 (출고 4년 7개월)
       </button>
@@ -212,6 +218,77 @@ function ValueChart({ snap }: { snap: Snapshot }) {
           </b>
         </div>
       </div>
+    </div>
+  )
+}
+
+/** Revenue opportunities ValueLink created for Hyundai Motor Group this month. */
+function LeadsPanel({ snap }: { snap: Snapshot }) {
+  const L = snap.leads
+  return (
+    <div className="mc-card">
+      <div className="mc-card-head">
+        <h3>현대차그룹으로 이은 매출 기회 · 이번 달</h3>
+        <span>
+          계약·이용 시 매출 규모 <b className="num">{L.monthManwon >= 1000 ? `${(L.monthManwon / 10000).toFixed(2)}억원` : `${Math.round(L.monthManwon).toLocaleString()}만원`}</b>
+        </span>
+      </div>
+      <ul className="mc-leads">
+        {L.month.map((c) => (
+          <li key={c.channel}>
+            <b>{c.channel}</b>
+            <span className="num">{c.n}건</span>
+          </li>
+        ))}
+        {L.month.length === 0 && <li>아직 없어요</li>}
+      </ul>
+      <ul className="mc-pub-calls">
+        {L.list.slice(0, 4).map((l, i) => (
+          <li key={i}>
+            <time className="num">{new Date(l.t).toDateString() === new Date(snap.sig.t).toDateString() ? clock(l.t) : `${new Date(l.t).getMonth() + 1}/${new Date(l.t).getDate()}`}</time>
+            <b>{l.channel}</b>
+            <em>{l.title}</em>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/** Public data the car is reading right now, and the Value Map verdict for where it stands. */
+function PublicPanel({ snap }: { snap: Snapshot }) {
+  const m = snap.pub.map
+  const f = snap.pub.feed
+  const w = f.weather
+  return (
+    <div className="mc-card mc-pub">
+      <div className="mc-card-head">
+        <h3>공공데이터 × 밸류맵</h3>
+        <span>
+          {snap.pub.mode === 'live' ? '실시간' : '스냅샷'} · 기상청 격자 {f.grid.nx},{f.grid.ny}
+        </span>
+      </div>
+      <div className="mc-pub-top">
+        <div className={`mc-pub-score lv-${m?.level}`}>
+          <b className="num">{m?.score ?? '-'}</b>
+          <small>주차 안전 · {m?.level ?? '위치 없음'}</small>
+        </div>
+        <div className="mc-pub-wx">
+          <span>{f.alerts.length ? f.alerts.map((a) => a.kind).join(' · ') : '특보 없음'}</span>
+          <span>{w.pty > 0 ? `강수 ${w.rain1hMm}mm/h` : w.rainInMin !== undefined ? `${w.rainInMin}분 뒤 비 (${w.pop}%)` : `맑음 ${w.tempC}℃ · 자외선 ${w.uv}`}</span>
+          <span>{m?.factors[0] ? `${m.factors[0].label} · 기대손실 ${won(m.expectedLoss)}` : '위험 요인 없음'}</span>
+          {m?.best && <span className="best">추천: {m.best.name} {m.best.level} (−{won(m.best.saved)})</span>}
+        </div>
+      </div>
+      <ul className="mc-pub-calls">
+        {snap.pub.calls.slice(0, 5).map((c, i) => (
+          <li key={i}>
+            <time className="num">{clock(c.t)}</time>
+            <b>{c.api}</b>
+            <em>{c.result}</em>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }

@@ -98,6 +98,7 @@
             <intent-filter><action android:name="SET_CHARGE_LIMIT" /></intent-filter>
             <intent-filter><action android:name="FIND_SERVICE_CENTER" /></intent-filter>
             <intent-filter><action android:name="GET_TRADE_IN_QUOTE" /></intent-filter>
+            <intent-filter><action android:name="GET_PARKING_RISK" /></intent-filter>
         </receiver>
     </application>
 </manifest>

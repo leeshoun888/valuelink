@@ -3,7 +3,8 @@
 // (Pleos driver-distraction guideline); the 3D car rotates only while parked.
 
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { useStore } from '../state/store'
+import { useStore, type SheetKind } from '../state/store'
+import { ValueMapSheet } from './ValueMapSheet'
 import { useVoice } from '../voice/voice'
 import type { Snapshot } from '../engine/runtime'
 import { manwon, won } from '../engine/valuation'
@@ -117,6 +118,9 @@ function Header({ snap }: { snap: Snapshot }) {
           <div className="jg-menu" onClick={() => setMenu(false)}>
             <button onClick={() => useStore.getState().loadDemoHistory()}>시연용 이력 불러오기</button>
             <button onClick={() => useStore.getState().previewTradeUp()}>교체 시점 미리보기</button>
+            <button onClick={() => useStore.getState().runtime?.publicScenario('rainSoon')}>공공데이터: 30분 뒤 비 예보</button>
+            <button onClick={() => useStore.getState().runtime?.publicScenario('heavyRain')}>공공데이터: 호우경보 발령</button>
+            <button onClick={() => useStore.getState().runtime?.publicScenario('clear')}>공공데이터: 특보 해제</button>
             <button onClick={() => useStore.getState().setCarTheme(useStore.getState().carTheme === 'dark' ? 'light' : 'dark')}>화면 테마 전환</button>
           </div>
         )}
@@ -175,6 +179,11 @@ function HomeView({ snap, theme, portrait }: { snap: Snapshot; theme: 'light' | 
             {snap.sig.modelYear} {snap.model.name} · <span className="num">{Math.round(snap.sig.odometerKm ?? 0).toLocaleString()}km</span> · 출고 {snap.ageYears.toFixed(1)}년
           </p>
           <div className="jg-linkrow">
+            {snap.pub.map && (
+              <span className={`risk lv-${snap.pub.map.level}`} onClick={() => setSheet('map')}>
+                <i /> 주차 안전 <b className="num">{snap.pub.map.score}</b> {snap.pub.map.level}
+              </span>
+            )}
             <span>
               관리 점수 <b className="num">{snap.links.careScore}</b>
             </span>
@@ -320,8 +329,9 @@ function GuardRow({ e, now }: { e: LedgerEntry; now: number }) {
   )
 }
 
-function Sheet({ snap, kind, onClose }: { snap: Snapshot; kind: 'trade' | 'value' | 'tradeUp'; onClose: () => void }) {
+function Sheet({ snap, kind, onClose }: { snap: Snapshot; kind: SheetKind; onClose: () => void }) {
   if (kind === 'tradeUp') return <TradeUpSheet snap={snap} onClose={onClose} />
+  if (kind === 'map') return <ValueMapSheet snap={snap} onClose={onClose} />
   return (
     <div className="jg-sheet-bg" onClick={onClose}>
       <div className="jg-sheet glass solid" onClick={(e) => e.stopPropagation()}>
@@ -371,7 +381,8 @@ function ReportSheet({ snap }: { snap: Snapshot }) {
           <p className="jg-label">자산 가치 리포트</p>
           <p className="jg-value num">{manwon(snap.tradeIn!.price)}</p>
           <p className="jg-sub">
-            현대 인증중고차 예상 매입가 · 여권 검증 우대 <b>+{(snap.tradeIn!.premium * 100).toFixed(0)}%</b> · {snap.tradeIn!.validDays}일 보장
+            현대 인증중고차 예상 매입가 · 여권 검증 우대 <b>+{(snap.tradeIn!.premium * 100).toFixed(0)}%</b>
+            {snap.tradeIn!.floodSafe ? ' (침수 안심 인증 +1% 포함)' : ''} · {snap.tradeIn!.validDays}일 보장
           </p>
         </div>
         <div className="jg-care">
@@ -412,6 +423,24 @@ function ReportSheet({ snap }: { snap: Snapshot }) {
             {L.capital.residualBonusPct ? `리스 반납 잔존가치 +${L.capital.residualBonusPct}%p · 재계약 금리 −${L.capital.rateCutPct}%p` : '관리 점수 70점부터 우대'}
           </small>
         </section>
+        <section className="wide">
+          <h4>이번 달 밸류링크가 현대차그룹으로 이은 것</h4>
+          {snap.leads.month.length === 0 ? (
+            <p>아직 없어요</p>
+          ) : (
+            <ul className="jg-leads">
+              {snap.leads.month.map((l) => (
+                <li key={l.channel}>
+                  <span>{l.channel}</span>
+                  <b className="num">{l.n}건</b>
+                </li>
+              ))}
+            </ul>
+          )}
+          <small>
+            침수 안심 인증 {snap.tradeIn!.floodSafe ? '✓' : '대기'} · 호우특보 {snap.exposure.alertDays}일 중 침수흔적 구역 체류 {snap.exposure.floodMin}분 (기상청 × 행정안전부)
+          </small>
+        </section>
       </div>
       <p className="jg-fine">매입가 보장·할인·포인트·금리는 현대차그룹 제휴를 전제로 한 출품 시나리오입니다. 여권은 차주가 동의할 때만 공유됩니다.</p>
     </>
@@ -436,12 +465,21 @@ function TradeUpSheet({ snap, onClose }: { snap: Snapshot; onClose: () => void }
           </div>
           <span>−</span>
           <div>
-            <small>내 차 매입가 (현대 인증중고차, 여권 우대)</small>
+            <small>내 차 매입가 (여권 우대)</small>
             <b className="num">{manwon(o.tradeIn)}</b>
           </div>
+          {o.subsidy > 0 && (
+            <>
+              <span>−</span>
+              <div>
+                <small>보조금 (국비+{tu.timing.region?.replace('특별시', '') ?? '지자체'})</small>
+                <b className="num">{manwon(o.subsidy)}</b>
+              </div>
+            </>
+          )}
           <span>−</span>
           <div>
-            <small>관리 우수 재구매 할인</small>
+            <small>재구매 할인</small>
             <b className="num">{manwon(o.discount)}</b>
           </div>
           <span>=</span>
@@ -457,7 +495,21 @@ function TradeUpSheet({ snap, onClose }: { snap: Snapshot; onClose: () => void }
           </div>
           <span>블루멤버스 {snap.links.pointsThisMonth.toLocaleString()}P 사용 가능</span>
         </div>
-        <p className="jg-fine">{tu.reason}. 매입가·할인·금리는 현대차그룹 제휴를 전제로 한 출품 시나리오입니다.</p>
+        {(tu.timing.subsidyRemaining !== undefined || tu.timing.policy) && (
+          <p className="jg-tu-timing">
+            {tu.timing.subsidyRemaining !== undefined && (
+              <span>
+                {tu.timing.region} 보조금 잔여 <b className="num">{tu.timing.subsidyRemaining.toLocaleString()}대</b> ({Math.round(tu.timing.subsidyLeftPct ?? 0)}%)
+              </span>
+            )}
+            {tu.timing.policy && (
+              <span>
+                {tu.timing.policy.name} 종료까지 <b className="num">{tu.timing.policy.daysLeft}일</b> (최대 {tu.timing.policy.manwon}만원)
+              </span>
+            )}
+          </p>
+        )}
+        <p className="jg-fine">{tu.reason}. 보조금은 무공해차 통합누리집 지자체 공고 기준(시연 가정값), 매입가·할인·금리는 현대차그룹 제휴를 전제로 한 출품 시나리오입니다.</p>
         <div className="jg-tu-act">
           <button className="pill secondary" onClick={onClose}>
             나중에
@@ -520,7 +572,7 @@ function SuggestionBar({ snap }: { snap: Snapshot }) {
             className="pill primary"
             onClick={() => {
               if (s.cta?.sheet) {
-                useStore.getState().setSheet(s.cta.sheet)
+                useStore.getState().setSheet(s.cta.sheet as SheetKind)
                 rt?.dismiss()
               } else void rt?.accept()
             }}

@@ -452,3 +452,17 @@
     gap: 2px;
   }
 }
+
+.lp-city {
+  background: #000;
+  max-width: none;
+}
+.lp-city .lp-tiles,
+.lp-city .lp-sub {
+  max-width: 1100px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.lp-city .lp-tile h4 {
+  font-size: 18px;
+}

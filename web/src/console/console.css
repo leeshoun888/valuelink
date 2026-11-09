@@ -343,3 +343,89 @@
   background: #1d1d1f;
   color: #fff;
 }
+
+.mc-pub-top {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  margin-top: 12px;
+}
+.mc-pub-score {
+  flex: none;
+  width: 118px;
+  height: 118px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #f5f5f7;
+}
+.mc-pub-score b {
+  font-size: 40px;
+  letter-spacing: -0.03em;
+}
+.mc-pub-score small {
+  font-size: 11px;
+  color: #6e6e73;
+}
+.mc-pub-score.lv-주의 b {
+  color: #c66900;
+}
+.mc-pub-score.lv-위험 {
+  background: #fff1f0;
+}
+.mc-pub-score.lv-위험 b {
+  color: #e3261b;
+}
+.mc-pub-wx {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 13px;
+  color: #3a3a3c;
+}
+.mc-pub-wx .best {
+  color: #0071e3;
+  font-weight: 600;
+}
+.mc-pub-calls {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 10px 0 0;
+  border-top: 1px solid #f0f0f2;
+  font-size: 12px;
+}
+.mc-pub-calls li {
+  display: flex;
+  gap: 8px;
+  padding: 3px 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.mc-pub-calls time {
+  color: #86868b;
+}
+.mc-pub-calls em {
+  font-style: normal;
+  color: #86868b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mc-leads {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.mc-leads li {
+  display: flex;
+  gap: 8px;
+  padding: 7px 13px;
+  border-radius: 99px;
+  background: #f5f5f7;
+  font-size: 13px;
+}

@@ -9,7 +9,11 @@
       "function": {
         "name": "GET_CAR_VALUE",
         "description": "Returns the car's current estimated resale value and how much value the driver's habits protected this month.",
-        "parameters": { "type": "object", "properties": {}, "required": [] },
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        },
         "component": "service"
       }
     },
@@ -18,7 +22,11 @@
       "function": {
         "name": "GET_BATTERY_HEALTH",
         "description": "Returns the EV battery state of health reported by the car and the charging habits that affect it.",
-        "parameters": { "type": "object", "properties": {}, "required": [] },
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        },
         "component": "service"
       }
     },
@@ -30,7 +38,10 @@
         "parameters": {
           "type": "object",
           "properties": {
-            "percent": { "type": "number", "description": "Charging limit in percent (50 to 100)." }
+            "percent": {
+              "type": "number",
+              "description": "Charging limit in percent (50 to 100)."
+            }
           },
           "required": []
         },
@@ -42,7 +53,11 @@
       "function": {
         "name": "FIND_SERVICE_CENTER",
         "description": "Opens navigation search for the nearest authorized service center when a warning lamp or maintenance item needs attention.",
-        "parameters": { "type": "object", "properties": {}, "required": [] },
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        },
         "component": "service"
       }
     },
@@ -51,7 +66,24 @@
       "function": {
         "name": "GET_TRADE_IN_QUOTE",
         "description": "Returns a trade-in price estimate based on the verified vehicle passport, only while parked.",
-        "parameters": { "type": "object", "properties": {}, "required": [] },
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        },
+        "component": "service"
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "GET_PARKING_RISK",
+        "description": "Rates how safe the current parking spot is for the car's value using public data (flood history, heavy-rain warnings, crime-prone blocks, weather) and suggests a safer nearby parking lot.",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        },
         "component": "service"
       }
     }

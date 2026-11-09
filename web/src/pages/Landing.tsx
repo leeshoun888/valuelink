@@ -210,6 +210,35 @@ export default function Landing() {
         <Render name="xray_dark" alt="차체를 투과해 보이는 배터리 팩" className="lp-battery-img" />
       </section>
 
+      <section className="lp-value lp-city" id="city">
+        <p className="lp-eyebrow" data-reveal>
+          도시가 함께 지킨다
+        </p>
+        <h2 data-reveal>
+          비가 오기 전에.
+          <br />
+          물이 차기 전에.
+        </h2>
+        <p className="lp-sub" data-reveal>
+          차 안의 신호에 공공데이터를 겹칩니다. 차를 세우는 순간 그 자리의 자산 위험을 원 단위로 계산하고, 위험하면 차가 먼저 움직입니다. 정확한 위치 대신 기상청 5km 격자만 밖으로 나갑니다.
+        </p>
+        <div className="lp-tiles">
+          {[
+            ['기상청 초단기예보', '30분 뒤 비 소식에 열린 창문을 미리 닫습니다. 와이퍼가 움직이기 전에.'],
+            ['기상청 기상특보 × 행안부 침수흔적도', '호우경보가 내린 날, 예전에 물에 잠긴 자리에 서 있으면 가장 가까운 높은 주차장으로 안내합니다.'],
+            ['생활안전지도 범죄주의구간', '차량 범죄가 잦은 골목에 세우면 문 잠금을 확인합니다.'],
+            ['도로교통공단 사고다발지', '사고 이력은 시세를 크게 낮춥니다. 사고다발지 앞에서 먼저 감속을 안내합니다.'],
+            ['전국주차장정보 + 건축물대장', '옥내·고층 공영주차장을 찾아 위험별로 어디에 세울지 답합니다.'],
+            ['무공해차 통합누리집 보조금', '지역 보조금이 소진되기 전에 교체 최적 시점을 알립니다.'],
+          ].map(([t, d]) => (
+            <div key={t} className="lp-tile" data-reveal>
+              <h4>{t}</h4>
+              <p>{d}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       <section className="lp-prove" id="prove">
         <p className="lp-eyebrow" data-reveal>
           증명한다

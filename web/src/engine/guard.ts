@@ -6,6 +6,8 @@
 // runtime turns the same rule into a suggestion instead (graceful degradation).
 
 import type { VehicleAction, VehicleSignals } from './types'
+import type { PublicFeed } from './publicdata'
+import { hotspotNear, type ValueMap } from './valuemap'
 import { SOH_PER_CAPPED_SESSION } from './battery'
 import { VALUE_PER_SOH_POINT, won } from './valuation'
 import { WON_PER_HARSH_EVENT } from './habits'
@@ -23,6 +25,11 @@ export type GuardKind =
   | 'tradeUp'
   | 'harshDriving'
   | 'gentleRoute'
+  | 'rainForecast'
+  | 'floodRisk'
+  | 'theftZone'
+  | 'accidentZone'
+  | 'stormCheck'
 
 export interface LedgerEntry {
   id: string
@@ -46,7 +53,24 @@ export interface Suggestion {
   kind: GuardKind
   title: string
   detail: string
-  cta?: { label: string; action?: VehicleAction; /** opens an in-app sheet instead of a vehicle action */ sheet?: 'tradeUp' }
+  cta?: { label: string; action?: VehicleAction; /** opens an in-app sheet instead of a vehicle action */ sheet?: 'tradeUp' | 'map' }
+  /** Hyundai Motor Group channel this suggestion leads to (revenue opportunity, recorded on accept) */
+  channel?: Channel
+  /** recorded when the driver follows the suggestion (value protected by the driver's own action) */
+  onAccept?: Omit<LedgerEntry, 'id' | 't' | 'sdk' | 'auto'>
+}
+
+/** Hyundai Motor Group channels a ValueLink action leads into. */
+export type Channel = '블루핸즈' | 'E-pit' | '신차 보상판매' | '현대 인증중고차' | '현대캐피탈' | '블루멤버스'
+
+/** Revenue opportunity per channel, 만원 [assumption: average ticket]. */
+export const CHANNEL_TICKET: Record<Channel, number> = {
+  블루핸즈: 15,
+  'E-pit': 2.5,
+  '신차 보상판매': 5_550,
+  '현대 인증중고차': 3_000,
+  현대캐피탈: 180,
+  블루멤버스: 1,
 }
 
 export interface GuardContext {
@@ -58,6 +82,11 @@ export interface GuardContext {
   parkedForSec: number
   newWarnings: string[]
   harshDelta: number
+  /** public data around the car (weather, warnings, flood / crime / accident layers, parking) */
+  pub?: PublicFeed
+  map?: ValueMap | null
+  /** today's exposure: a heavy-rain warning was seen, minutes inside a flood-trace zone under it */
+  wxToday?: { alert: number; floodMin: number }
 }
 
 export interface GuardResult {
@@ -106,6 +135,142 @@ export const activeRouteKm = (sig: VehicleSignals) => (sig.routeRemainingKm !== 
 const usableRange = (km?: number) => (km !== undefined && km > 1 ? km : undefined)
 
 export const RULES: Rule[] = [
+  {
+    kind: 'rainForecast',
+    cooldownMs: 2 * 3600e3,
+    test: ({ sig, parkedForSec, pub, map }) => {
+      const w = pub?.weather
+      if (!w || w.pty > 0 || w.rainInMin === undefined || w.rainInMin > 120) return null
+      if (!(sig.windowsOpen ?? 0) || parkedForSec < 5 || map?.lot?.covered) return null
+      return {
+        actions: [{ kind: 'closeWindows', reason: `기상청 초단기예보: ${w.rainInMin}분 뒤 강수 (POP ${w.pop}%)` }],
+        entry: {
+          kind: 'rainForecast',
+          title: `비 예보 ${w.rainInMin}분 전 → 창문 미리 닫음`,
+          detail: `기상청 초단기예보로 ${w.rainInMin}분 뒤 비 소식(강수확률 ${w.pop}%)을 받고, 비가 오기 전에 창문 ${sig.windowsOpen}개를 닫았어요. 와이퍼가 움직이기 전에 지켰어요.`,
+          won: 150_000 * (w.pop / 100),
+          basis: '실내 습기 제거·시트 클리닝 15만원 [가정] × 강수확률 (기상청 단기예보 조회서비스)',
+          say: `${w.rainInMin}분 뒤 비 예보가 있어서 열려 있던 창문을 미리 닫았어요.`,
+        },
+      }
+    },
+  },
+  {
+    kind: 'floodRisk',
+    cooldownMs: 3 * 3600e3,
+    test: ({ sig, map, parkedForSec }) => {
+      const flood = map?.factors.find((f) => f.kind === 'flood')
+      if (!map || !flood || map.level !== '위험' || sig.speedKph > 1 || parkedForSec < 5) return null
+      const loss = Math.round(flood.p * flood.loss)
+      const b = map.best
+      return {
+        actions: [],
+        entry: {
+          kind: 'floodRisk',
+          title: `침수 위험 → ${b ? `${b.name} ${b.level} 안내` : '이동 권고'}`,
+          detail: `${flood.detail}. 지금 자리의 24시간 기대손실은 약 ${Math.round(loss / 10_000).toLocaleString()}만원이에요.`,
+          won: 0,
+          basis: '행정안전부 침수흔적도 × 기상청 호우특보 × 주차 위치. 침수 시 전손 [기대손실 = 확률 가정 × 차량가]',
+          say: b
+            ? `호우경보가 내렸고 여기는 예전에 물에 잠긴 구역이에요. ${Math.round(b.distanceM)}미터 옆 ${b.name} ${b.level}로 옮기면 안전해요.`
+            : '호우경보가 내렸고 여기는 예전에 물에 잠긴 구역이에요. 높은 곳으로 차를 옮겨 주세요.',
+        },
+        suggestion: {
+          id: 'flood',
+          kind: 'floodRisk',
+          title: `침수 위험: ${flood.label}`,
+          detail: b ? `${Math.round(b.distanceM)}m 옆 ${b.name} ${b.level}은 안전해요. 기대손실 ${Math.round(b.saved / 10_000).toLocaleString()}만원을 줄여요.` : '높은 곳으로 차를 옮겨 주세요.',
+          cta: b ? { label: `${b.name}로 안내`, action: { kind: 'searchPlace', value: b.name, reason: '침수 위험 회피' } } : { label: '밸류맵 보기', sheet: 'map' },
+          onAccept: b
+            ? {
+                kind: 'floodRisk',
+                title: `침수 위험 회피 → ${b.name} ${b.level}`,
+                detail: `호우경보 중 침수흔적 구역을 벗어나도록 안내했어요. 기대손실 ${Math.round(b.saved / 10_000).toLocaleString()}만원 감소.`,
+                won: b.saved,
+                basis: '기대손실 차이 (현재 위치 − 추천 주차장), 침수흔적도 × 호우특보 [확률 가정]',
+                say: `${b.name}로 안내할게요.`,
+              }
+            : undefined,
+        },
+      }
+    },
+  },
+  {
+    kind: 'stormCheck',
+    cooldownMs: 24 * 3600e3,
+    test: ({ pub, wxToday, sig }) => {
+      if (!pub || !wxToday?.alert || wxToday.floodMin < 1 || sig.speedKph > 1) return null
+      if (pub.alerts.some((a) => a.kind.startsWith('호우') || a.kind.startsWith('태풍'))) return null
+      const min = Math.round(wxToday.floodMin)
+      return {
+        actions: [],
+        entry: {
+          kind: 'stormCheck',
+          title: '호우 뒤 하부·고전압 배터리 점검 안내',
+          detail: `오늘 호우경보 중 침수흔적 구역에 ${min}분 있었어요. 하부와 고전압 배터리 방수 상태를 점검하면 여권에 "침수 안심" 기록이 남아요.`,
+          won: 0,
+          basis: '기상청 특보 해제 + 당일 침수 노출 기록 (여권). 침수 의심 차량은 중고 시세가 크게 하락',
+          say: '비가 그쳤어요. 오늘 물이 찼던 구역에 잠시 있었으니 블루핸즈에서 하부 점검을 받아 두면 안심이에요.',
+        },
+        suggestion: {
+          id: 'storm',
+          kind: 'stormCheck',
+          title: '호우 뒤 안심 점검',
+          detail: `침수 노출 ${min}분. 블루핸즈 하부·배터리 점검으로 "침수 안심" 인증을 여권에 남겨요.`,
+          channel: '블루핸즈',
+          cta: { label: '블루핸즈 찾기', action: { kind: 'searchPlace', value: '블루핸즈', reason: '호우 뒤 안심 점검' } },
+          onAccept: {
+            kind: 'stormCheck',
+            title: '호우 뒤 안심 점검 → 블루핸즈',
+            detail: '점검 결과가 여권에 기록되면 침수 의심 없는 차로 인증돼요.',
+            won: 0,
+            basis: '블루핸즈 점검 예약 (현대차그룹 정비 매출)',
+            say: '가까운 블루핸즈를 찾아볼게요.',
+          },
+        },
+      }
+    },
+  },
+  {
+    kind: 'theftZone',
+    cooldownMs: 6 * 3600e3,
+    test: ({ sig, map, parkedForSec }) => {
+      const z = map?.zonesNear.find((x) => x.kind === 'theft' && x.inside)
+      if (!z || parkedForSec < 30 || sig.doorsLocked === true) return null
+      return {
+        actions: [{ kind: 'lockDoors', reason: `${z.label} 주차 (생활안전지도)` }],
+        entry: {
+          kind: 'theftZone',
+          title: '범죄 주의 구간 주차 → 문 잠금 확인',
+          detail: `${z.detail} 구간이에요. 문을 잠그고 차 안에 물건을 두지 않도록 안내했어요.`,
+          won: 500_000 * 0.016,
+          basis: '차량 파손·물품 도난 50만원 [가정] × 잠금 시 위험 감소분 (행정안전부 생활안전지도 치안안전)',
+          say: '여기는 차량 범죄 주의 구간이라 문을 잠갔어요. 귀중품은 가지고 내리세요.',
+        },
+      }
+    },
+  },
+  {
+    kind: 'accidentZone',
+    cooldownMs: 12 * 3600e3,
+    test: ({ sig, pub }) => {
+      if (!pub || sig.speedKph < 5) return null
+      const z = hotspotNear(sig, pub)
+      if (!z) return null
+      return {
+        actions: [],
+        entry: {
+          kind: 'accidentZone',
+          title: `앞쪽 ${z.label} → 감속 안내`,
+          detail: `${z.detail}. 사고 이력이 한 번 생기면 중고 시세가 크게 내려가요.`,
+          won: 0,
+          basis: '도로교통공단 사고다발지역정보. 사고 이력 차량 시세 하락 [가정 −5~10%]',
+          say: `잠시 뒤 ${z.label}이에요. 천천히 지나갈게요.`,
+        },
+      }
+    },
+  },
+
   {
     kind: 'tripCharge',
     cooldownMs: 6 * 3600e3,
@@ -246,6 +411,7 @@ export const RULES: Rule[] = [
           kind: 'warningLamp',
           title: `${names} 점검 필요`,
           detail: '지금 고치면 가치 손실 0원. 가까운 블루핸즈를 내비에서 찾아요.',
+          channel: '블루핸즈',
           cta: { label: '블루핸즈 찾기', action: { kind: 'searchPlace', value: '블루핸즈', reason: `경고등 ${names}` } },
         },
       }
@@ -286,7 +452,14 @@ export const RULES: Rule[] = [
           basis: '깊은 방전 회피',
           say: `배터리가 ${sig.socPct}%예요. 가까운 충전소를 띄워드릴게요.`,
         },
-        suggestion: { id: 'chg', kind: 'deepDischarge', title: '충전이 필요해요', detail: '내비 주변 충전소 목록을 열어요.', cta: { label: '주변 충전소', action: { kind: 'showChargers', reason: 'SoC ≤ 12%' } } },
+        suggestion: {
+          id: 'chg',
+          kind: 'deepDischarge',
+          title: '충전이 필요해요',
+          detail: '가까운 E-pit 초고속충전소에 빈 충전기가 있어요 (한국환경공단 충전기 실시간 상태). 배터리 예열까지 맞춰 둘게요.',
+          channel: 'E-pit',
+          cta: { label: 'E-pit 안내', action: { kind: 'searchPlace', value: 'E-pit', reason: 'SoC ≤ 12%, 빈 충전기' } },
+        },
       }
     },
   },

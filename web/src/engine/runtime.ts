@@ -3,11 +3,13 @@
 
 import type { BusEvent, Capabilities, VehicleBus } from './bus'
 import { annualFade, AVG_HABITS, BatteryTracker, stateOfHealth, type BatteryHabits, type ChargeSession } from './battery'
-import { isPlugged, RULES, warningName, type GuardKind, type LedgerEntry, type Suggestion } from './guard'
+import { CHANNEL_TICKET, isPlugged, RULES, warningName, type Channel, type GuardKind, type LedgerEntry, type Suggestion } from './guard'
 import { HabitTracker, type HabitStats } from './habits'
 import { Passport, type PassportCheck } from './passport'
 import { decodeVin, links, type Links } from './links'
 import type { Bookmark, VehicleAction, VehicleSignals } from './types'
+import { ScenarioPublicSource, type PublicCall, type PublicFeed, type PublicSource } from './publicdata'
+import { valueMap, type ValueMap } from './valuemap'
 import { ageCurve, expectedSoh, identify, KM_PER_YEAR, valuate, VALUE_PER_SOH_POINT, type CarModel, type Valuation } from './valuation'
 
 export type Mode = 'driving' | 'parked' | 'charging'
@@ -44,11 +46,24 @@ export interface Snapshot {
   ledger: LedgerEntry[]
   suggestion: Suggestion | null
   warnings: { type: string; name: string; count: number }[]
-  tradeIn: { price: number; validDays: number; premium: number } | null
+  tradeIn: { price: number; validDays: number; premium: number; floodSafe: boolean } | null
   /** What the record is worth to each Hyundai Motor Group service (the "Link" in ValueLink). */
   links: Links
   vin: { maker: string; year?: number } | null
   speaking: string | null
+  /** public data around the car and the Value Map (asset risk of where it stands) */
+  pub: { feed: PublicFeed; map: ValueMap | null; calls: PublicCall[]; mode: 'live' | 'snapshot' }
+  /** Hyundai Motor Group revenue opportunities ValueLink created (accepted suggestions, showroom / service visits) */
+  leads: { list: Lead[]; month: { channel: Channel; n: number; manwon: number }[]; monthManwon: number }
+  /** public-data proofs in the passport: heavy-rain exposure, recalls, battery registry */
+  exposure: { alertDays: number; floodMin: number; parks: number }
+}
+
+export interface Lead {
+  t: number
+  channel: Channel
+  title: string
+  manwon: number
 }
 
 export interface RuntimeHooks {
@@ -60,6 +75,8 @@ export interface RuntimeOptions {
   deliveredAt?: number
   /** localStorage key; when set, passport / ledger / charge sessions survive restarts (APK). */
   persistKey?: string
+  /** public data (weather, warnings, regional layers); defaults to the snapshot source */
+  publicSource?: PublicSource
 }
 
 const HORIZON_MONTHS = 36
@@ -75,6 +92,7 @@ export class Runtime {
   hooks: RuntimeHooks = {}
   speaking: string | null = null
   bookmarks: Bookmark[] = []
+  leads: Lead[] = []
   /** Odometer-free distance when the car does not report one (integrated speed). */
   private drivenKm = 0
   private lastT = 0
@@ -88,10 +106,17 @@ export class Runtime {
   private listeners = new Set<(s: Snapshot) => void>()
   private snap: Snapshot | null = null
   private saveAcc = 0
+  pub: PublicSource
+  private feed: PublicFeed | null = null
+  private feedAt = -Infinity
+  private feedPos = ''
+  /** today's public-data exposure for the passport: [heavy-rain warning seen, minutes in a flood zone under it, parks] */
+  private wx = { day: '', alert: 0, floodMin: 0, parks: 0 }
 
   constructor(bus: VehicleBus, opts: RuntimeOptions = {}) {
     this.bus = bus
     this.opts = opts
+    this.pub = opts.publicSource ?? new ScenarioPublicSource()
     this.load()
     bus.onEvent?.((e) => this.onBusEvent(e))
     this.lastT = bus.read().t
@@ -121,8 +146,12 @@ export class Runtime {
     this.drivenKm += (Math.max(0, sig.speedKph) * Math.min(dt, 60_000)) / 3.6e6
 
     const parked = sig.gear === 'P' && sig.speedKph < 1
-    if (parked && this.parkedSince === null) this.parkedSince = sig.t
+    if (parked && this.parkedSince === null) {
+      this.parkedSince = sig.t
+      this.dayWx(sig.t).parks++
+    }
     if (!parked) this.parkedSince = null
+    this.refreshFeed(sig, dt)
 
     this.battery.update(sig)
     this.habitsTracker.update(sig, this.drivenKm)
@@ -139,6 +168,47 @@ export class Runtime {
       this.saveAcc = 0
       this.save()
     }
+  }
+
+  // ---- public data ---------------------------------------------------------------------------------------
+
+  /** Re-read public data every 5 min of vehicle time, or when the car moved ~200 m. */
+  private refreshFeed(sig: VehicleSignals, dt: number) {
+    const pos = sig.position ? `${sig.position[0].toFixed(3)},${sig.position[1].toFixed(3)}` : ''
+    if (!this.feed || sig.t - this.feedAt > 5 * 60_000 || pos !== this.feedPos || this.pub.mode === 'snapshot') {
+      this.feed = this.pub.feed(sig.position, sig.t)
+      this.feedAt = sig.t
+      this.feedPos = pos
+    }
+    // exposure: minutes spent inside a flood-trace zone while a heavy-rain warning is active
+    const heavy = this.feed.alerts.some((a) => a.kind.startsWith('호우') || a.kind.startsWith('태풍'))
+    if (heavy) {
+      const w = this.dayWx(sig.t)
+      w.alert = 1
+      const m = this.snap?.pub.map
+      if (m?.zonesNear.some((z) => z.kind === 'flood' && z.inside) && !(m.lot?.kind === '주차빌딩')) w.floodMin += Math.min(dt, 60_000) / 60_000
+    }
+  }
+
+  private dayWx(t: number) {
+    const d = dayKey(t)
+    if (this.wx.day !== d) this.wx = { day: d, alert: 0, floodMin: 0, parks: 0 }
+    return this.wx
+  }
+
+  /** Demo controls for the public-data scenario (in-car menu, console). */
+  publicScenario(kind: 'rainSoon' | 'heavyRain' | 'hail' | 'clear') {
+    const src = this.pub as ScenarioPublicSource
+    if (!('setWeather' in src)) return
+    const t = this.bus.read().t
+    if (kind === 'rainSoon') src.setWeather({ pty: 0, rainInMin: 30, pop: 80 })
+    if (kind === 'heavyRain') {
+      src.setWeather({ pty: 1, rainInMin: undefined, pop: 100, rain1hMm: 45 })
+      src.setAlert('호우경보', t)
+    }
+    if (kind === 'hail') src.setAlert('우박', t)
+    if (kind === 'clear') src.clear()
+    this.feedAt = -Infinity
   }
 
   // ---- guard --------------------------------------------------------------------------------------------
@@ -158,6 +228,9 @@ export class Runtime {
       parkedForSec: this.parkedSince === null ? 0 : (sig.t - this.parkedSince) / 1000,
       newWarnings,
       harshDelta,
+      pub: this.feed ?? undefined,
+      map: this.snap?.pub.map,
+      wxToday: this.wx.day === dayKey(sig.t) ? { alert: this.wx.alert, floodMin: this.wx.floodMin } : undefined,
     }
     for (const rule of RULES) {
       const last = this.lastFired.get(rule.kind) ?? -Infinity
@@ -213,7 +286,12 @@ export class Runtime {
     if (!s?.cta?.action) return false
     this.suggestion = null
     const ok = await this.bus.apply(s.cta.action!)
-    this.say(ok ? `${s.cta.label}를 열었어요.` : '내비를 열 수 없어요.')
+    if (ok && s.channel) this.lead(s.channel, s.title)
+    if (ok && s.onAccept) {
+      this.ledger.unshift({ ...s.onAccept, id: `g${++this.seq}`, t: this.bus.read().t, sdk: [`${SDK_CALL[s.cta.action!.kind]}(${s.cta.action!.value ?? ''}) ✓`], auto: false })
+      this.say(s.onAccept.say)
+    } else this.say(ok ? `${s.cta.label}를 열었어요.` : '내비를 열 수 없어요.')
+    this.publish(this.bus.read())
     return ok
   }
 
@@ -236,11 +314,40 @@ export class Runtime {
 
   /** From the trade-up sheet: open navi search for the nearest Hyundai showroom. */
   async findShowroom() {
-    return this.bus.apply({ kind: 'searchPlace', value: '현대자동차 지점', reason: '보상판매 상담' })
+    const ok = await this.bus.apply({ kind: 'searchPlace', value: '현대자동차 지점', reason: '보상판매 상담' })
+    if (ok) {
+      this.lead('신차 보상판매', '새 차로 잇기 → 지점 상담')
+      this.lead('현대 인증중고차', '여권 검증 매입')
+      this.lead('현대캐피탈', '관리 점수 우대 할부')
+    }
+    return ok
   }
 
   async findService() {
-    return this.bus.apply({ kind: 'searchPlace', value: '블루핸즈', reason: '운전자 요청' })
+    const ok = await this.bus.apply({ kind: 'searchPlace', value: '블루핸즈', reason: '운전자 요청' })
+    if (ok) this.lead('블루핸즈', '운전자 요청 정비')
+    return ok
+  }
+
+  private lead(channel: Channel, title: string) {
+    this.leads.unshift({ t: this.bus.read().t, channel, title, manwon: CHANNEL_TICKET[channel] })
+    this.leads = this.leads.slice(0, 100)
+    this.publish(this.bus.read())
+  }
+
+  private leadSummary(t: number) {
+    const m = new Date(t).getMonth()
+    const y = new Date(t).getFullYear()
+    const list = this.leads.filter((l) => new Date(l.t).getMonth() === m && new Date(l.t).getFullYear() === y)
+    const by = new Map<Channel, { channel: Channel; n: number; manwon: number }>()
+    for (const l of list) {
+      const e = by.get(l.channel) ?? { channel: l.channel, n: 0, manwon: 0 }
+      e.n++
+      e.manwon += l.manwon
+      by.set(l.channel, e)
+    }
+    const month = [...by.values()].sort((a, b) => b.manwon - a.manwon)
+    return { list: this.leads.slice(0, 12), month, monthManwon: month.reduce((a, x) => a + x.manwon, 0) }
   }
 
   private say(text: string) {
@@ -270,6 +377,7 @@ export class Runtime {
       fastCharges: sessions.filter((s) => s.fast).length,
       guards: todays.filter((e) => e.auto).length,
       harsh: (sig.harshAccel ?? 0) + (sig.harshBrake ?? 0),
+      wx: this.wx.day === day ? [this.wx.alert, Math.round(this.wx.floodMin), this.wx.parks] : undefined,
     })
   }
 
@@ -308,7 +416,7 @@ export class Runtime {
       id: 'tradeup',
       kind: 'tradeUp',
       title: `교체 최적 시점: 인증중고차 매입 기준까지 ${m}개월`,
-      detail: `지금 보상판매하면 매입가 ${Math.round(tu.offer.tradeIn).toLocaleString()}만원${tu.offer.discount ? ` + 재구매 할인 ${tu.offer.discount}만원` : ''}. 새 차로 잇는 견적을 볼까요?`,
+      detail: `지금 보상판매하면 매입가 ${Math.round(tu.offer.tradeIn).toLocaleString()}만원${tu.offer.discount ? ` + 재구매 할인 ${tu.offer.discount}만원` : ''}${tu.offer.subsidy ? ` + 보조금 ${tu.offer.subsidy}만원 (잔여 ${tu.timing.subsidyRemaining?.toLocaleString()}대)` : ''}. 새 차로 잇는 견적을 볼까요?`,
       cta: { label: '새 차로 잇기', sheet: 'tradeUp' },
     }
     this.say(`지금이 차를 바꾸기 가장 좋은 시점이에요. 인증중고차 매입 기준까지 ${m}개월 남았어요.`)
@@ -372,7 +480,11 @@ export class Runtime {
     const protectedTotal = this.ledger.reduce((a, e) => a + e.won, 0)
     const charging = sig.chargeState === 'charging' || (sig.chargeKw ?? 0) > 0.5
     const mode: Mode = sig.speedKph > 1 || sig.gear !== 'P' ? 'driving' : charging || isPlugged(sig) ? 'charging' : 'parked'
-    const premium = check.chainOk && check.mileageOk && check.days >= 30 ? 0.02 : 0
+    const verified = check.chainOk && check.mileageOk && check.days >= 30
+    const ex = this.exposure()
+    // 침수 안심 인증: heavy-rain days on record, and the car never sat in a flood-trace zone under a warning for long
+    const floodSafe = verified && ex.alertDays > 0 && ex.floodMin <= 60
+    const premium = (verified ? 0.02 : 0) + (floodSafe ? 0.01 : 0)
     const first = this.passport.blocks[0]
     const last = this.passport.blocks.at(-1)
     this.snap = {
@@ -400,7 +512,7 @@ export class Runtime {
       ledger: this.ledger.slice(0, 40),
       suggestion: this.suggestion,
       warnings: (sig.warnings ?? []).map((w) => ({ type: w.type, name: warningName(w.type), count: w.count })),
-      tradeIn: mode === 'driving' ? null : { price: Math.round((value.value * (1 + premium)) / 10) * 10, validDays: 7, premium },
+      tradeIn: mode === 'driving' ? null : { price: Math.round((value.value * (1 + premium)) / 10) * 10, validDays: 7, premium, floodSafe },
       links: links({
         now: sig.t,
         ageYears: age,
@@ -413,11 +525,17 @@ export class Runtime {
         passport: check,
         activeWarnings: sig.warnings?.length ?? 0,
         ledger: this.ledger,
+        subsidy: this.feed?.subsidy,
+        policy: this.feed?.policy,
         cappedSessionsThisMonth: this.battery.sessions.filter((x) => new Date(x.end).getMonth() === month && new Date(x.end).getFullYear() === new Date(sig.t).getFullYear() && x.endSoc <= 85).length,
       }),
       vin: decodeVin(sig.vin),
       speaking: this.speaking,
+      pub: { feed: this.feed ?? this.pub.feed(sig.position, sig.t), map: null, calls: this.pub.calls.slice(0, 12), mode: this.pub.mode },
+      exposure: this.exposure(),
+      leads: this.leadSummary(sig.t),
     }
+    this.snap.pub.map = valueMap(sig, this.snap.pub.feed, value.value)
     this.checkTradeUp(this.snap)
     if (this.suggestion !== this.snap.suggestion) this.snap = { ...this.snap, suggestion: this.suggestion }
     this.listeners.forEach((l) => l(this.snap!))
@@ -427,13 +545,29 @@ export class Runtime {
     return this.snap
   }
 
+  private exposureCache = { n: -1, head: '', v: { alertDays: 0, floodMin: 0, parks: 0 } }
+  private exposure() {
+    const bl = this.passport.blocks
+    const head = bl.at(-1)?.hash ?? ''
+    if (this.exposureCache.n === bl.length && this.exposureCache.head === head) return this.exposureCache.v
+    const v = { alertDays: 0, floodMin: 0, parks: 0 }
+    for (const b of bl) {
+      if (!b.wx) continue
+      v.alertDays += b.wx[0]
+      v.floodMin += b.wx[1]
+      v.parks += b.wx[2]
+    }
+    this.exposureCache = { n: bl.length, head, v }
+    return v
+  }
+
   // ---- persistence (APK) --------------------------------------------------------------------------------
 
   private save() {
     const key = this.opts.persistKey
     if (!key) return
     try {
-      localStorage.setItem(key, JSON.stringify({ blocks: this.passport.blocks, ledger: this.ledger, sessions: this.battery.sessions }))
+      localStorage.setItem(key, JSON.stringify({ blocks: this.passport.blocks, ledger: this.ledger, sessions: this.battery.sessions, leads: this.leads }))
     } catch {
       /* storage unavailable */
     }
@@ -449,14 +583,16 @@ export class Runtime {
       this.passport.blocks = d.blocks ?? []
       this.ledger = d.ledger ?? []
       this.battery.sessions = d.sessions ?? []
+      this.leads = d.leads ?? []
     } catch {
       /* corrupt or unavailable */
     }
   }
 
   /** Seeds history (demo / judges): passport blocks, past charge sessions and ledger entries. */
-  seed(history: { blocks?: Passport['blocks']; ledger?: LedgerEntry[]; sessions?: ChargeSession[] }) {
+  seed(history: { blocks?: Passport['blocks']; ledger?: LedgerEntry[]; sessions?: ChargeSession[]; leads?: Lead[] }) {
     if (history.blocks) this.passport.blocks = history.blocks
+    if (history.leads) this.leads = history.leads
     if (history.ledger) this.ledger = history.ledger
     if (history.sessions) this.battery.sessions = history.sessions
     this.save()

@@ -13,7 +13,24 @@ Pleos Connect 위에서 차가 스스로 가치를 **지키고**, **증명하고
 |---|---|---|
 | 지킨다 | 충전 상한 80% (장거리 전날만 100%), 폭염 충전 전류 제한, 비 오면 창문 닫기, 주차 후 전조등 끄기, 한낮 블라인드, 경고등이 켜지면 블루핸즈 검색, 깊은 방전 시 충전소 | `EvBattery.setEvChargePercentLimit` · `setEvChargeCurrentDrawLimit` · `Window.setWindowPosition` · `Light.setLowBeamLightSwitch` · `Window.moveWindowBlind` · `NaviHelper.requestNavigationScreen` |
 | 증명한다 | 차량 실측 배터리 건강도, 주행거리와 바퀴 회전 수 이중 기록, 경고등·정비·에어백 이력, 하루 한 블록 SHA-256 해시 사슬 | `EV_CURRENT_BATTERY_CAPACITY / INFO_EV_BATTERY_CAPACITY` · `Odometer` · `WHEEL_TICK` · `Safety.getTelltalesInfo` |
-| 잇는다 | 6개 요인으로 분해한 자산 가치, 3년 가치 예측(내 습관 vs 평균), 여권 기반 보상판매 매입가, Gleo 음성 5개 함수 | `CarInfo.getVINInfo` · Gleo `schema.json` |
+| 잇는다 | 6개 요인으로 분해한 자산 가치, 3년 가치 예측, 여권 기반 매입가(침수 안심 인증 우대), 보조금·세제 타이밍을 반영한 교체 시점, 블루핸즈·E-pit·현대캐피탈 연결과 매출 기회 장부, Gleo 음성 6개 함수 | `CarInfo.getVINInfo` · Gleo `schema.json` |
+
+### 공공데이터 × 밸류맵
+
+차를 세우는 순간 그 자리의 24시간 기대손실과 주차 안전 점수를 계산합니다. 정확한 위치 대신 기상청 5km 격자만 조회에 씁니다.
+
+| 공공데이터 | 차가 하는 일 |
+|---|---|
+| 기상청 초단기예보 | 30분 뒤 비 예보 → 열린 창문을 비 오기 전에 닫음 (`Window.setWindowPosition`) |
+| 기상청 기상특보 × 행정안전부 침수흔적도 | 호우경보 중 침수흔적 구역 → 가장 안전한 공영주차장 안내 (`NaviHelper.SearchPlace`), 특보 해제 후 블루핸즈 안심 점검 |
+| 생활안전지도 범죄주의구간 | 문 잠금 (`Door.setDoorLock`) |
+| 도로교통공단 사고다발지역 | 진입 전 감속 안내 |
+| 전국주차장정보표준데이터 + 건축물대장 | 옥내·고층 주차장 추천 |
+| 한국환경공단 충전소 실시간 상태 | 빈 E-pit 안내 |
+| 무공해차 통합누리집 보조금 공고 | 교체 최적 시점 (실 부담 = 신차 − 보조금 − 매입가 − 할인) |
+| 국토교통부 리콜정보 · 배터리 이력관리제 | 차량 여권 |
+
+시연 빌드는 같은 형식의 스냅샷(`web/src/engine/publicdata.ts`)을 쓰고, 실서비스는 인증키를 가진 프록시가 격자 단위로 갱신합니다(`VITE_PUBLIC_PROXY`).
 
 모든 제어는 capability를 확인한 뒤 실행하고, 지원하지 않거나 승인 전이면 같은 규칙이 음성 안내로 대체됩니다. 창문·전조등·블라인드는 P단 정차가 확인될 때만 움직입니다.
 
@@ -51,7 +68,8 @@ cd web && npm run build && cd ../android && ./gradlew assembleRelease   # web/di
 - 배터리 건강도: 77,000 / 77,400 Wh = 99.5% (3rd-party 권한으로 읽음)
 - 충전 상한 50% → 80% 설정 후 재조회 확인, 충전 전류 12.5 → 16A
 - 가상 콘솔에서 연 창문 40% → 0%, 전조등 LowBeam → Off 확인
-- 경고등(TPMS) 감지 → 블루핸즈 안내, 즐겨찾기 수신, Gleo 5개 함수 응답
+- 경고등(TPMS) 감지 → 블루핸즈 안내, 즐겨찾기 수신, Gleo 6개 함수 응답
+- 기상청 예보(30분 뒤 비) → 창문 40% → 0%, 호우경보 × 침수흔적 → 주차 안전 3(위험) → 공영주차빌딩 내비 검색, 특보 해제 → 블루핸즈 안심 점검 (서명된 release APK에서 확인)
 - 차량 서비스(VHAL) 재시작에도 앱이 살아남고 자동 재연결
 
 ## 외부 앱 권한 밖의 것

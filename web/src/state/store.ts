@@ -4,6 +4,13 @@ import { SIM_DELIVERED, SimVehicle, simHistory } from '../engine/sim'
 import { manwon, won } from '../engine/valuation'
 import { voice } from '../voice/voice'
 import { NativeVehicle, isNative, setGleoHandler } from '../engine/native'
+import { LivePublicSource, ScenarioPublicSource } from '../engine/publicdata'
+
+/** Public-data proxy (tools/publicdata-proxy); unset in the judging build, which uses the snapshot. */
+const PROXY = (import.meta.env.VITE_PUBLIC_PROXY as string | undefined) ?? ''
+const publicSource = (fallback?: ScenarioPublicSource) => (PROXY ? new LivePublicSource(PROXY, fallback) : fallback ?? new ScenarioPublicSource())
+
+export type SheetKind = 'value' | 'trade' | 'tradeUp' | 'map'
 
 interface Store {
   runtime: Runtime | null
@@ -22,8 +29,8 @@ interface Store {
   /** APK: load the demo history (passport since delivery) so judges see a lived-in car. */
   loadDemoHistory: () => void
   /** Car-app sheet (value breakdown, asset report, trade-up offer). */
-  sheet: 'value' | 'trade' | 'tradeUp' | null
-  setSheet: (s: 'value' | 'trade' | 'tradeUp' | null) => void
+  sheet: SheetKind | null
+  setSheet: (s: SheetKind | null) => void
   /** Demo: jump the car's age to five months before the certified-used-car window closes. */
   previewTradeUp: () => void
 }
@@ -48,10 +55,10 @@ export const useStore = create<Store>((set, get) => ({
     let rt: Runtime
     let sim: SimVehicle | null = null
     if (isNative()) {
-      rt = new Runtime(new NativeVehicle(), { persistKey: 'valuelink.v1' })
+      rt = new Runtime(new NativeVehicle(), { persistKey: 'valuelink.v1', publicSource: publicSource() })
     } else {
       sim = new SimVehicle()
-      rt = new Runtime(sim, { deliveredAt: SIM_DELIVERED })
+      rt = new Runtime(sim, { deliveredAt: SIM_DELIVERED, publicSource: publicSource(sim.pub) })
       const s = sim.read()
       const soh = (100 * s.batteryCapWh!) / s.batteryDesignWh!
       rt.seed(simHistory(s.t, s.odometerKm!, soh))
@@ -141,6 +148,13 @@ function gleo(rt: Runtime, json: string) {
     case 'FIND_SERVICE_CENTER':
       void rt.findService()
       return { status: 'success', message: '가까운 블루핸즈를 내비에서 찾아볼게요.' }
+    case 'GET_PARKING_RISK': {
+      const m = s.pub.map
+      if (!m) return { status: 'fail', message: '위치를 확인하는 중이에요.' }
+      const top = m.factors[0]
+      const tail = m.best ? ` ${Math.round(m.best.distanceM)}미터 옆 ${m.best.name} ${m.best.level}이 더 안전해요.` : ''
+      return { status: 'success', message: `여기 주차 안전 점수는 ${m.score}점, ${m.level}이에요.${top ? ` ${top.label} 때문이에요.` : ' 침수·범죄·날씨 위험이 없어요.'}${tail}` }
+    }
     case 'GET_TRADE_IN_QUOTE':
       if (!s.tradeIn) return { status: 'fail', message: '보상판매 견적은 정차 중에 보여드릴게요.' }
       return { status: 'success', message: `차량 여권 기준 현대 인증중고차 예상 매입가는 ${manwon(s.tradeIn.price)}이에요.${s.links.cpo.eligible ? ` 매입 기준까지 ${Math.floor(s.links.cpo.monthsLeft / 12)}년 ${s.links.cpo.monthsLeft % 12}개월 남았어요.` : ''}` }

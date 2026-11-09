@@ -7,6 +7,7 @@ import type { HabitStats } from './habits'
 import type { PassportCheck } from './passport'
 import type { LedgerEntry } from './guard'
 import { KM_PER_YEAR } from './valuation'
+import type { PolicyDate, Subsidy } from './publicdata'
 
 /** Hyundai Certified Used Car purchase rule: under 5 years, under 100,000 km, no accident. */
 export const CPO_MAX_YEARS = 5
@@ -40,11 +41,14 @@ export interface Links {
     loyaltyDiscount: number // 만원 [assumption]
     /** inside the recommended window: the car proactively suggests the trade-up */
     due: boolean
+    /** public-data timing: EV subsidy left in the region, tax cut ending */
+    timing: { subsidyLeftPct?: number; subsidyRemaining?: number; region?: string; policy?: { name: string; daysLeft: number; manwon: number } }
     offer: {
       model: string
       newPrice: number // 만원 [assumption]
       tradeIn: number // 만원
       discount: number // 만원
+      subsidy: number // 만원, national + local EV purchase subsidy (public notice)
       net: number // 만원
       months: number
       ratePct: number // Hyundai Capital instalment [assumption]
@@ -76,6 +80,8 @@ export interface LinkInput {
   cappedSessionsThisMonth: number
   kmPerYear?: number
   newPrice?: number
+  subsidy?: Subsidy
+  policy?: PolicyDate[]
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
@@ -138,7 +144,12 @@ function tradeUp(i: LinkInput, eligible: boolean, limit: string, monthsLeft: num
   const loyaltyDiscount = score >= 85 ? 100 : score >= 70 ? 50 : 0
   const tradeIn = Math.round((i.valueManwon * (1 + i.premium)) / 10) * 10
   const newPrice = i.newPrice ?? 5_550 // 2027 IONIQ 5 Long Range [assumption]
-  const net = Math.max(0, newPrice - tradeIn - loyaltyDiscount)
+  const subsidy = i.subsidy ? i.subsidy.nationalManwon + i.subsidy.localManwon : 0
+  const net = Math.max(0, newPrice - subsidy - tradeIn - loyaltyDiscount)
+  const leftPct = i.subsidy ? (100 * i.subsidy.remaining) / Math.max(1, i.subsidy.total) : undefined
+  const pol = i.policy?.find((p) => p.endsAt > i.now)
+  const policy = pol ? { name: pol.name, daysLeft: Math.ceil((pol.endsAt - i.now) / 864e5), manwon: pol.manwon } : undefined
+  const urgent = (leftPct !== undefined && leftPct < 25) || (policy !== undefined && policy.daysLeft <= 60)
   const months = 36
   const ratePct = score >= 85 ? 4.5 : 4.9 // [assumption] care-score rate
   const r = ratePct / 100 / 12
@@ -147,7 +158,8 @@ function tradeUp(i: LinkInput, eligible: boolean, limit: string, monthsLeft: num
     when,
     reason: eligible ? `인증중고차 매입 기준(${limit === 'age' ? '출고 5년' : '10만km'}) 만료 3개월 전` : '가치 곡선이 가장 가파르게 꺾이기 전',
     loyaltyDiscount,
-    due: eligible && monthsLeft <= 6,
-    offer: { model: '아이오닉 5 롱레인지 (2027년형)', newPrice, tradeIn, discount: loyaltyDiscount, net, months, ratePct, monthly },
+    due: eligible && (monthsLeft <= 6 || (urgent && monthsLeft <= 12)),
+    timing: { subsidyLeftPct: leftPct, subsidyRemaining: i.subsidy?.remaining, region: i.subsidy?.region, policy },
+    offer: { model: '아이오닉 5 롱레인지 (2027년형)', newPrice, tradeIn, discount: loyaltyDiscount, subsidy, net, months, ratePct, monthly },
   }
 }

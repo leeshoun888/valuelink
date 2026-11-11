@@ -2,6 +2,7 @@
 # Keeps the form's own layout: content is written into the eight answer boxes (tables 1–8).
 # Usage: python3 docs/build_proposal.py  → docs/밸류링크_ValueLink_접수양식_기획서.docx
 import copy
+import json
 import os
 import sys
 
@@ -16,6 +17,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 FORM = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, '..', '..', 'research', 'consent.docx')
 OUT = os.path.join(HERE, '밸류링크_ValueLink_접수양식_기획서.docx')
 IMG = os.path.join(HERE, 'img')
+SUBMIT = os.path.join(HERE, '..', '..', '제출', '밸류링크_ValueLink_접수양식_기획서_제출본.docx')
 
 REPO = 'https://github.com/leeshoun888/valuelink'
 DEMO = 'https://leeshoun888.github.io/valuelink/'
@@ -143,6 +145,58 @@ def fill_line(doc, label, value):
             style_run(run, size=10, bold=True)
 
 
+# ---- 01 참가신청서 · 04 동의 서명 (개인 참가, 대학(원)생 부문) ----------------------------------------------
+APPLICANT = json.load(open(os.path.join(HERE, '..', '..', '.secrets', 'applicant.json'), encoding='utf-8'))  # outside the repo
+
+
+def set_par(p, text, size=10, bold=False):
+    """Replace a form line's text, keeping its paragraph."""
+    for r in p.runs[1:]:
+        r._element.getparent().remove(r._element)
+    run = p.runs[0] if p.runs else p.add_run()
+    run.text = text
+    style_run(run, size=size, bold=bold)
+
+
+def set_cell(cell, text, size=9):
+    cell.paragraphs[0].text = ''
+    for extra in cell.paragraphs[1:]:
+        extra._element.getparent().remove(extra._element)
+    style_run(cell.paragraphs[0].add_run(text), size=size)
+
+
+def fill_application(doc):
+    A = APPLICANT
+    y, m, d = A['date']
+    lines = {
+        '참가 단위:': '참가 단위: ■ 개인     □ 팀',
+        '참가 부문:': '참가 부문: ■ 대학(원)생    □ 일반(스타트업 포함)',
+        '팀명(개인 참가 시 성명):': f"팀명(개인 참가 시 성명): {A['name']}",
+        '대표자 성명:': f"대표자 성명: {A['name']}     역할: {A['role']}",
+        '대표자 소속': f"대표자 소속(학교/학과/회사명/무소속 등): {A['org']}",
+        '대표자 이메일:': f"대표자 이메일: {A['email']}",
+        '대표자 휴대폰번호': f"대표자 휴대폰번호: {A['phone']}",
+        '참가 인원:': '참가 인원: 1명',
+        '작성일:': f'작성일: {y}년 {m}월 {d}일',
+    }
+    for p in doc.paragraphs:
+        t = p.text.strip()
+        for k, v in lines.items():
+            if t.startswith(k):
+                set_par(p, v)
+                break
+    members = doc.tables[0]
+    for c, v in zip(members.rows[1].cells, [A['name'], A['org'], A['phone'], A['email'], A['role']]):
+        set_cell(c, v)
+    sign = doc.tables[9].rows[1].cells
+    set_cell(sign[1], A['name'])
+    set_cell(sign[2], '■ 동의\n□ 미동의')
+    sign[3].paragraphs[0].text = ''
+    if os.path.exists(A['sign']):
+        sign[3].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+        sign[3].paragraphs[0].add_run().add_picture(A['sign'], height=Cm(1.0))
+    set_cell(sign[4], f'{y}. {m}. {d}.')
+
 
 def main():
     doc = Document(FORM)
@@ -159,7 +213,7 @@ def main():
 
     # 1. 한 줄 소개 ───────────────────────────────────────────────
     b = boxes[0]
-    b.lead('현대차를 “자산”으로 승격시키는 Pleos Connect 자산 관리 매니저: 차가 차량 신호와 공공데이터(기상청·행정안전부·도로교통공단)를 겹쳐 스스로 가치를 지키고(충전·창문·문 잠금 직접 제어, 침수 위험 회피), 증명하고(위조 불가 차량 여권, 침수 안심 인증), 다음 차와 다음 주인에게 잇습니다(인증중고차·보상판매·현대캐피탈·블루핸즈·E-pit)')
+    b.lead('현대차를 “관리 가능한 차량 자산의 표준”으로 만드는 Pleos Connect 자산 관리 매니저: 차가 차량 신호와 공공데이터(기상청·행정안전부·도로교통공단)를 겹쳐 스스로 가치를 지키고(충전·창문·문 잠금 직접 제어, 침수 위험 회피), 증명하고(위조 불가 차량 여권, 침수 안심 인증), 다음 차와 다음 주인에게 잇습니다(인증중고차·보상판매·현대캐피탈·블루핸즈·E-pit)')
     b.para('사람들은 차를 집 다음으로 큰 **자산**으로 여기고, 그 가치를 소중히 지키고 싶어 합니다. 밸류링크는 운전자가 아무것도 하지 않아도 **차가 매일 자산 가치를 관리하고 그 기록을 스스로 남기게** 합니다. 그 기록은 현대차그룹의 인증중고차·재구매·정비·리스로 이어집니다. 블루링크가 차를 연결했다면, **밸류링크는 차의 가치를 연결합니다.**')
     b.para('밸류링크가 만드는 것은 **“내가 관리하지 않아도 스스로를 관리하는 자산”**입니다. 궁극의 목표는 소비자가 **“관리 가능한 차량 자산의 표준”으로 현대차를 가장 먼저 떠올리게 하는 것**입니다.')
     b.image('hero.png', 15.6, '밸류링크의 3D 트윈: Blender로 모델링하고 조명과 그림자를 미리 계산(베이크)한 IONIQ 5 (Pleos Connect 에뮬레이터 차량 기준 비율)')
@@ -190,6 +244,7 @@ def main():
     b.h('핵심 인사이트')
     b.para('현대차에는 이미 좋은 개별 기능이 있습니다. **배터리 세이버**(시동을 끄고 문을 열면 주차등 소등), 블루링크 **원격 창문 닫기**와 **원격 진단**, 아이오닉 5의 **충전 목표 설정**. 하지만 모두 **사람이 눌러야 하거나 차 안 센서만 보는** 기능이고, 그 결과가 **차의 가치로 계산되거나 기록되지 않습니다.**')
     b.para('밸류링크는 ① 흩어진 기능을 **자산 가치 하나로 묶고**, ② **차량 신호 × 공공데이터**로 상황을 판단해 **차가 먼저 실행하고**(비 예보 30분 전 창문, 호우경보 시 침수흔적 구역 이탈 안내), ③ 그 모든 행동을 **원 단위 가치와 위조 불가 여권**으로 남겨, ④ **현대차그룹의 매출 채널**(인증중고차·신차·현대캐피탈·블루핸즈·E-pit)로 잇습니다. 이 조합은 차 안의 제어 권한(Pleos Connect)과 도시의 데이터(공공데이터)가 함께 있어야만 가능합니다.')
+    b.para('그중 밸류링크가 **가장 먼저 겨냥하는 문제는 현대 인증중고차의 매물 부족**입니다. 매입 기준(5년·10만km·무사고)을 충족하고 관리가 데이터로 증명된 자사 차량을 매일 찾아내는 채널이 되는 것, 나머지 기능은 모두 그 증명을 쌓는 수단입니다.')
     b.para('사용자를 모으는 힘은 안전보다 **돈**입니다. 그래서 밸류링크는 안전 앱으로 다가가지 않고, **“쓰기만 해도 차 값이 지켜지는 앱”**으로 다가갑니다. 앱은 지켜낸 가치를 매일 원 단위로 보여주고, 침수 회피·도난 대비 같은 안전은 그 결과로 함께 따라옵니다. 불확실한 경기 속에서 **예측 가능한 소비**를 원하는 고객에게, 가치가 덜 줄어드는 차는 그 자체로 프리미엄이 됩니다.')
 
     # 3. 주요 기능 및 차량 특화 요소 ─────────────────────────────────
@@ -219,6 +274,8 @@ def main():
     )
     b.bullets([
         '모든 제어는 **capability 확인 후** 실행하고, 차량이 지원하지 않거나 App Market 승인 전이면 **같은 규칙이 음성 안내로 자동 대체**됩니다. 창문·전조등·블라인드는 **P단 정차가 확인될 때만** 움직입니다.',
+        '**자동 제어의 범위와 책임**: 차가 스스로 하는 일은 창문 닫기·전조등 끄기·문 잠그기·충전 상한 낮추기처럼 **위험을 줄이는 방향의 동작뿐**이고, 창문 열기·잠금 해제처럼 위험을 키우는 동작은 하지 않습니다. 실행할 때마다 음성으로 알리고 이유(데이터 출처)와 함께 기록합니다. 출시 단계에서는 규칙별 켜기/끄기와 첫 실행 동의 절차를 둡니다.',
+        '**원 단위 금액의 근거**: 화면의 금액은 모두 **“확률 × 비용”의 기대값**이고, 기록마다 계산 근거(공공데이터 출처 또는 [가정] 표시)를 함께 남깁니다. 예: 비 예보 창문 닫기 = 실내 클리닝 15만원 [가정] × 기상청 강수확률. [가정] 계수는 출시 전 **현대 인증중고차 매입·감가 데이터와 블루핸즈 정비 단가로 보정**하는 것을 제휴의 첫 단계로 둡니다.',
     ])
     b.h('④ 밸류맵: 차가 서 있는 자리의 자산 위험을 원 단위로 (공공데이터 실연동)')
     b.para('차를 세우는 순간, 그 자리의 **24시간 기대손실(확률 × 손실)**과 **주차 안전 점수(0~100)**를 계산합니다. 위험하면 반경 1.2km 안에서 기대손실이 가장 낮은 **실제 공영주차장**을 찾아 안내합니다. 공공데이터포털·생활안전지도 **인증키를 직접 발급받아 9개 API를 실제로 연동·검증**했습니다. 차의 좌표는 밖으로 나가지 않고 **기상청 5km 격자, 약 1km 지도 타일, 자치구 코드**만 조회에 쓰입니다.', size=9.0)
@@ -488,7 +545,11 @@ def main():
     b = boxes[7]
     b.para('(선택) 게시 후 링크 기재 예정')
 
-    doc.save(OUT)
+    doc.save(OUT)  # public copy (in the repo): no personal data
+    fill_application(doc)
+    os.makedirs(os.path.dirname(SUBMIT), exist_ok=True)
+    doc.save(SUBMIT)  # the copy to e-mail, outside the repo
+    print('saved', SUBMIT)
     print('saved', OUT)
 
 

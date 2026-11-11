@@ -521,6 +521,7 @@ if CLIP == 'hero':
 dst = os.path.join(OUT, f'{CLIP}_{THEME}')
 os.makedirs(dst, exist_ok=True)
 scene.render.filepath = os.path.join(dst, '')
+scene.render.use_overwrite = False  # resume: frames already on disk are skipped
 only = os.environ.get('ONLY_FRAME')
 if only:
     for fr in range(-60, int(only) + 1):

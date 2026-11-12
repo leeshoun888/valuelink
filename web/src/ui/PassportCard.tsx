@@ -276,7 +276,8 @@ export function passportDataOf(snap: {
     model: snap.model.name,
     modelEn: snap.model.id.toUpperCase().replace(/-/g, '<').replace('<LR', '<LONG<RANGE').replace('<SR', '<STANDARD'),
     year: snap.sig.modelYear,
-    vin: snap.sig.vin,
+    // the emulator reports 'invalid'; only a 17-character VIN (masked or not) is shown
+    vin: /^[A-HJ-NPR-Z0-9*]{17}$/i.test(snap.sig.vin ?? '') ? snap.sig.vin : undefined,
     since: snap.passport.since,
     days: snap.passport.days,
     km: snap.passport.odometerKm,

@@ -17,7 +17,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 FORM = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, '..', '..', 'research', 'consent.docx')
 OUT = os.path.join(HERE, '밸류링크_ValueLink_접수양식_기획서.docx')
 IMG = os.path.join(HERE, 'img')
-SUBMIT = os.path.join(HERE, '..', '..', '제출', '밸류링크_ValueLink_접수양식_기획서_제출본.docx')
+SUBMIT_DIR = os.path.join(HERE, '..', '..', '제출')
 
 REPO = 'https://github.com/leeshoun888/valuelink'
 DEMO = 'https://leeshoun888.github.io/valuelink/'
@@ -146,7 +146,8 @@ def fill_line(doc, label, value):
 
 
 # ---- 01 참가신청서 · 04 동의 서명 (개인 참가, 대학(원)생 부문) ----------------------------------------------
-APPLICANT = json.load(open(os.path.join(HERE, '..', '..', '.secrets', 'applicant.json'), encoding='utf-8'))  # outside the repo
+# Applicant details for the filled copy live outside the repo (personal data never goes public).
+APPLICANT_FILE = os.path.join(HERE, '..', '..', '.secrets', 'applicant.json')
 
 
 def set_par(p, text, size=10, bold=False):
@@ -166,7 +167,9 @@ def set_cell(cell, text, size=9):
 
 
 def fill_application(doc):
-    A = APPLICANT
+    A = json.load(open(APPLICANT_FILE, encoding='utf-8'))
+    A['sign'] = os.path.expanduser(A['sign'])
+    A['date'] = tuple(A['date'])
     y, m, d = A['date']
     lines = {
         '참가 단위:': '참가 단위: ■ 개인     □ 팀',
@@ -196,6 +199,7 @@ def fill_application(doc):
         sign[3].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
         sign[3].paragraphs[0].add_run().add_picture(A['sign'], height=Cm(1.0))
     set_cell(sign[4], f'{y}. {m}. {d}.')
+    return A['name']
 
 
 def main():
@@ -216,7 +220,7 @@ def main():
     b.lead('현대차를 “관리 가능한 차량 자산의 표준”으로 만드는 Pleos Connect 자산 관리 매니저: 차가 차량 신호와 공공데이터(기상청·행정안전부·도로교통공단)를 겹쳐 스스로 가치를 지키고(충전·창문·문 잠금 직접 제어, 침수 위험 회피), 증명하고(위조 불가 차량 여권, 침수 안심 인증), 다음 차와 다음 주인에게 잇습니다(인증중고차·보상판매·현대캐피탈·블루핸즈·E-pit)')
     b.para('사람들은 차를 집 다음으로 큰 **자산**으로 여기고, 그 가치를 소중히 지키고 싶어 합니다. 밸류링크는 운전자가 아무것도 하지 않아도 **차가 매일 자산 가치를 관리하고 그 기록을 스스로 남기게** 합니다. 그 기록은 현대차그룹의 인증중고차·재구매·정비·리스로 이어집니다. 블루링크가 차를 연결했다면, **밸류링크는 차의 가치를 연결합니다.**')
     b.para('밸류링크가 만드는 것은 **“내가 관리하지 않아도 스스로를 관리하는 자산”**입니다. 궁극의 목표는 소비자가 **“관리 가능한 차량 자산의 표준”으로 현대차를 가장 먼저 떠올리게 하는 것**입니다.')
-    b.image('hero.png', 15.6, '밸류링크의 3D 트윈: Blender로 모델링하고 조명과 그림자를 미리 계산(베이크)한 IONIQ 5 (Pleos Connect 에뮬레이터 차량 기준 비율)')
+    b.image('app_dark_main.png', 15.6, '밸류링크 메인 화면(다크 모드): 내 차의 자산 가치, 배터리 건강도, 밸류링크가 지켜낸 가치, 차량 여권')
 
     # 2. 기획 배경 ────────────────────────────────────────────────
     b = boxes[1]
@@ -375,7 +379,7 @@ def main():
         widths=[4.2, 11.8],
         size=8.0,
     )
-    b.para('매번 같은 모습인 장면(비 예보·전조등·잠금·결빙·햇볕·침수·교체 시점)은 **Blender Cycles로 미리 렌더한 3초 클립**(투명 배경, 라이트·다크 두 벌)을 재생하고, 실제 데이터에 따라 달라지는 장면(배터리 충전량·경고 부품·여권 블록)은 실시간 3D로 그립니다. 부품(고전압 팩 구조·버스바·고전압 배선·전후 모터·12V 배터리·타이어)은 Blender로 정밀 모델링했고, 스튜디오 조명은 Blender Cycles로 렌더링한 환경맵을 써서 앱·시연 페이지·영상이 같은 톤을 냅니다. 에뮬레이터에서 상시 렌더링이 차량 서비스를 지연시키지 않도록 **상태가 바뀔 때만 그리는 저전력 모드**로 검증했습니다.', size=9.0)
+    b.para('매번 같은 모습인 장면(비 예보·전조등·잠금·결빙·햇볕·침수·교체 시점)은 **Blender Cycles로 미리 렌더한 3초 클립**(투명 배경, 라이트·다크 두 벌)을 재생하고, 실제 데이터에 따라 달라지는 장면(배터리 충전량·경고 부품·여권 블록)은 실시간 3D로 그립니다. 부품(고전압 팩 구조·버스바·고전압 배선·전후 모터·12V 배터리·타이어)은 Blender로 모델링했습니다. 에뮬레이터에서 상시 렌더링이 차량 서비스를 지연시키지 않도록 **상태가 바뀔 때만 그리는 저전력 모드**로 검증했습니다.', size=9.0)
     b.image('emulator_scene_tyre.png', 15.0, '그림 2-1. 에뮬레이터: 타이어 공기압 경고등(가상 콘솔)에 차체가 투명해지고 앞 타이어만 호박색으로 맥동, 고전압 팩과 전후 모터가 보임')
 
     # 4. 주요 사용 시나리오 ─────────────────────────────────────────
@@ -415,7 +419,7 @@ def main():
 
     # 5. 개발 계획 ────────────────────────────────────────────────
     b = boxes[4]
-    b.h('구현 현황: 기획서가 아니라, Pleos Connect 에뮬레이터에서 동작하는 앱')
+    b.h('구현 현황: Pleos Connect 에뮬레이터에서 동작하는 앱')
     b.bullets([
         f'**GitHub (소스 + release APK)**: {REPO}',
         f'**웹 라이브 데모** (랜딩 · 시연 콘솔 · 차량 앱 · 차량 여권 · 플릿): {DEMO}',
@@ -535,10 +539,7 @@ def main():
     b.bullets([
         f'GitHub 저장소 (소스 코드 + APK: apk/ 폴더): {REPO}',
         f'웹 라이브 데모: {DEMO}  (#/ 랜딩 · #/console 시연 콘솔 · #/car 차량 앱 · #/passport 차량 여권 · #/fleet 플릿)',
-        '시연 영상: 저장소 README 및 docs/ 폴더',
-        '3D: tools/blender (IONIQ 5 비율 모델, 패널 라인·AO 베이킹, Cycles 렌더) · 웹/앱 공용 ioniq5.glb',
-        '공공데이터: 기상청 단기예보(15084084)·기상특보(15000415)·생활기상지수(15085288), 행정안전부 생활안전지도(침수흔적도·범죄주의구간), 도로교통공단 사고다발지역(15058135·15105289), 전국주차장정보표준데이터(15012896), 한국환경공단 충전소 정보(15076352), 국토교통부 자동차 리콜정보(15089863), 전기차 배터리 이력관리제(2025.2.17), 서울시 지하주차장 충전 90% 권고(2024.8.9)',
-        '근거 자료: 딜사이트(2026.06) 현대차 인증중고차 매물 확보 분석 · 국토교통부 자동차 등록통계 보도(2026.06) · 카이즈유데이터연구소 중고차 거래량(2025.03) · Roole 중고 전기차 신뢰 조사(2025) · 현대차그룹 Pleos 발표(2026.04)',
+        '소개 영상: 별도 첨부 (밸류링크_ValueLink_소개영상.mp4, 145초)',
     ])
     b.image('passport.png', 12.0, '그림 10. 차량 여권: 이력 무결성, 차량 실측 SOH, 해시 사슬과 “주행거리 되돌려 보기”')
     b.image('console.png', 15.6, '그림 11. 시연 콘솔: 차량 앱, 3D 트윈, 공공데이터 × 밸류맵, 현대차그룹 매출 기회, Pleos SDK 호출 로그를 한 화면에')
@@ -548,11 +549,14 @@ def main():
     b.para('(선택) 게시 후 링크 기재 예정')
 
     doc.save(OUT)  # public copy (in the repo): no personal data
-    fill_application(doc)
-    os.makedirs(os.path.dirname(SUBMIT), exist_ok=True)
-    doc.save(SUBMIT)  # the copy to e-mail, outside the repo
-    print('saved', SUBMIT)
+    if not os.path.exists(APPLICANT_FILE):
+        return
     print('saved', OUT)
+    name = fill_application(doc)
+    submit = os.path.join(SUBMIT_DIR, f'밸류링크_ValueLink_접수양식_기획서_{name}.docx')
+    os.makedirs(SUBMIT_DIR, exist_ok=True)
+    doc.save(submit)  # the copy to e-mail, outside the repo
+    print('saved', submit)
 
 
 if __name__ == '__main__':

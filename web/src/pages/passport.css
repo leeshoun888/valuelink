@@ -234,3 +234,17 @@
     display: none;
   }
 }
+
+.pp-card-hero {
+  width: min(880px, 100%);
+  margin: 18px auto 0;
+}
+.pp-hero-ctl {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 26px;
+  font-size: 14px;
+  color: var(--text-2);
+}

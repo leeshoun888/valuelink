@@ -1361,7 +1361,20 @@
   background: var(--c-text);
 }
 
-/* asset report as a side panel: the passport blocks stay visible */
+/* asset report as a side panel: the vehicle passport sits where the car was */
+.jg-ppcard {
+  position: absolute;
+  left: 56px;
+  top: 486px;
+  width: 660px;
+  animation: jg-ppcard-in 0.6s var(--ease) both;
+}
+@keyframes jg-ppcard-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px) rotate(-1.5deg);
+  }
+}
 .jg-sheet-bg.side {
   place-items: center end;
   padding-right: 34px;

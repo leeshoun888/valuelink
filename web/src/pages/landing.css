@@ -482,7 +482,8 @@
   margin: 40px auto 0;
 }
 .lp-proof-stage {
-  height: min(62vh, 620px);
+  width: min(860px, 100%);
+  margin: 0 auto 28px;
 }
 .lp-proof-ctl {
   display: flex;

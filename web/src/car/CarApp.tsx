@@ -2,6 +2,7 @@
 // living object, short sentences. While driving it collapses to a glanceable, motion-free card
 // (Pleos driver-distraction guideline); the 3D car rotates only while parked.
 
+import { PassportCard, passportDataOf } from '../ui/PassportCard'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useStore, type SheetKind } from '../state/store'
 import { ValueMapSheet } from './ValueMapSheet'
@@ -89,7 +90,7 @@ export function carStateOf(s: Snapshot, xray = false, sheet: SheetKind | null = 
           }
         : undefined,
     newCar: sheet === 'tradeUp' || s.suggestion?.kind === 'tradeUp',
-    passport: sheet === 'trade' ? { days: s.passportDays, tamper: null } : null,
+    passport: null,
     windowsOpen: s.sig.windowsOpen ?? 0,
     headlights: Boolean(s.sig.headlightsOn),
     charging: s.mode === 'charging' && s.sig.chargeState === 'charging',
@@ -165,7 +166,7 @@ function Header({ snap }: { snap: Snapshot }) {
 function Scene({ snap, theme, portrait }: { snap: Snapshot; theme: 'light' | 'dark'; portrait?: boolean }) {
   const sheet = useStore((s) => s.sheet)
   const car = useMemo(() => carStateOf(snap, false, sheet), [snap, sheet])
-  // the asset report opens as a side panel: the car and its passport blocks stay on the left
+  // the asset report opens as a side panel; the vehicle passport takes the car's place on the left
   const report = sheet === 'trade' && !portrait
   const driving = snap.mode === 'driving'
   // fixed-look events play their pre-rendered clip once, over the real-time car
@@ -182,7 +183,7 @@ function Scene({ snap, theme, portrait }: { snap: Snapshot; theme: 'light' | 'da
   const shiftY = portrait ? 0.02 : 0.13
   return (
     <div className="jg-scene">
-      <div className={`cv-live ${clipOn ? 'hide' : ''}`}>
+      <div className={`cv-live ${clipOn || report ? 'hide' : ''}`}>
       <Suspense fallback={null}>
         <StudioCar
           state={car}
@@ -200,6 +201,11 @@ function Scene({ snap, theme, portrait }: { snap: Snapshot; theme: 'light' | 'da
       </Suspense>
       </div>
       <ClipLayer clip={clip} theme={theme} framing={{ distance, shiftX, shiftY }} onPlaying={setClipOn} onEnded={() => setClip(null)} />
+      {report && (
+        <div className="jg-ppcard">
+          <PassportCard data={passportDataOf(snap)} />
+        </div>
+      )}
     </div>
   )
 }

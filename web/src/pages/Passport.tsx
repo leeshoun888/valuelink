@@ -6,6 +6,7 @@ import { useStore } from '../state/store'
 import { manwon } from '../engine/valuation'
 import { sha256 } from '../engine/passport'
 import { Logo } from '../ui/icons'
+import { PassportCard, passportDataOf } from '../ui/PassportCard'
 import './passport.css'
 
 export default function PassportPage() {
@@ -38,7 +39,7 @@ export default function PassportPage() {
       }
       prev = b.hash
     }
-    return { day: edited[k].day, brokeAt }
+    return { day: edited[k].day, brokeAt, km: blocks.at(-1)!.odometerKm - 5000 }
   }, [tamper, blocks])
 
   if (!snap || !rt) return <div className="pp-boot"><Logo size={44} /></div>
@@ -64,17 +65,15 @@ export default function PassportPage() {
 
       <header className="pp-head">
         <p className="pp-eyebrow">Vehicle Passport</p>
-        <h1>
-          {snap.sig.modelYear} {snap.model.name}
-        </h1>
-        <p className="pp-id mono">
-          VIN {snap.sig.vin ?? '미확인'}
-          {snap.vin ? ` · ${snap.vin.maker}${snap.vin.year ? ` ${snap.vin.year}년형` : ''}` : ''}
-        </p>
-        <div className={`pp-verdict ${ok ? 'ok' : 'bad'}`}>
-          <b>{ok ? '이력 무결성 확인됨' : '검증 실패'}</b>
+        <div className="pp-card-hero">
+          <PassportCard data={passportDataOf(snap)} tamper={tampered ? { day: tampered.day, km: tampered.km } : null} />
+        </div>
+        <div className="pp-hero-ctl">
+          <button className="pill secondary" onClick={() => setTamper(!tamper)}>
+            {tamper ? '원래대로' : '주행거리 5,000km 되돌려 보기'}
+          </button>
           <span>
-            {p.days.toLocaleString()}일 · {p.blocks.toLocaleString()}개 블록 · 출고 {p.since}부터
+            {p.days.toLocaleString()}일 · {p.blocks.toLocaleString()}개 블록 · 출고 {p.since}부터 · {ok && !tampered ? '이력 무결성 확인됨' : '검증 실패'}
           </span>
         </div>
       </header>
@@ -153,9 +152,6 @@ export default function PassportPage() {
       <section className="pp-chain">
         <div className="pp-chart-head">
           <h2>해시 사슬</h2>
-          <button className="pill secondary" onClick={() => setTamper(!tamper)}>
-            {tamper ? '원래대로' : '주행거리 5,000km 되돌려 보기'}
-          </button>
         </div>
         {tampered && (
           <p className="pp-tamper">

@@ -1,6 +1,7 @@
 // Landing: an Apple-style product page. One object (the car), big type, scroll-told features: as each
 // feature scrolls by, the sticky 3D car shows it happening (windows close, lamps go out, the pack fills).
 
+import { PassportCard, type PassportCardData } from '../ui/PassportCard'
 import { ClipLayer, type ClipName } from '../three/Clip'
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { Logo } from '../ui/icons'
@@ -179,38 +180,38 @@ function Story({ steps = STEPS, id = 'guard', eyebrow = '지킨다' }: { steps?:
 }
 
 /** 28 sealed days (deterministic sample): kilometres, two heavy-rain days, one warning-lamp day. */
-const PROOF_DAYS = Array.from({ length: 28 }, (_, i) => ({
-  day: `d${i}`,
-  km: 12 + Math.round(48 * Math.abs(Math.sin(i * 1.7) * Math.cos(i * 0.6))) + (i % 7 === 5 ? 60 : 0),
-  alert: i === 9 || i === 10,
-  warn: i === 21,
-}))
+const PROOF_DAYS = 607
 
-/** The passport as objects, with the rollback demo: one block cracks and the chain after it goes dark. */
+/** The vehicle passport as a document, with the rollback demo: the mileage is struck, the record chain breaks
+ * at that day and the page is stamped void. */
+const PROOF: PassportCardData = {
+  model: '아이오닉 5 롱레인지',
+  modelEn: 'IONIQ5<LONG<RANGE',
+  year: 2025,
+  vin: 'KMHKN81AFSU******',
+  since: '2025-03-14',
+  days: PROOF_DAYS,
+  km: 24812,
+  soh: 98.1,
+  sohMeasured: true,
+  floodMin: 0,
+  openWarnings: 0,
+  head: '4df218ead6e34d19019de7b9ea7abd1d94bc8a2af650d5ff28559e3bc3a0b9b0',
+  ok: true,
+}
+
 function ProofStage() {
   const [tamper, setTamper] = useState(false)
-  const [seen, setSeen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const io = new IntersectionObserver((es) => es.forEach((e) => e.isIntersecting && setSeen(true)), { threshold: 0.2 })
-    if (ref.current) io.observe(ref.current)
-    return () => io.disconnect()
-  }, [])
-  const car: CarState = { ...DEFAULT_CAR, sohPct: 98.1, passport: seen ? { days: PROOF_DAYS, tamper: tamper ? 17 : null } : null }
   return (
-    <div className="lp-proof" ref={ref}>
+    <div className="lp-proof">
       <div className="lp-proof-stage">
-        {seen && (
-          <Suspense fallback={null}>
-            <StudioCar state={car} theme="light" autoRotate={false} interactive={false} azimuth={34} distance={11.5} shiftX={0.06} shiftY={0.05} style={{ width: '100%', height: '100%' }} />
-          </Suspense>
-        )}
+        <PassportCard data={PROOF} tamper={tamper ? { day: '2026-10-24', km: PROOF.km - 5000 } : null} />
       </div>
       <div className="lp-proof-ctl">
         <button className="pill secondary" onClick={() => setTamper(!tamper)}>
           {tamper ? '원래대로' : '주행거리 5,000km 되돌려 보기'}
         </button>
-        <p>{tamper ? '조작은 숨길 수 없습니다.' : '높이는 그날의 주행거리입니다.'}</p>
+        <p>{tamper ? '조작한 날부터 기록 사슬이 끊기고, 여권은 무효가 됩니다.' : '하루 한 칸씩 봉인된 기록이 차의 이력을 증명합니다.'}</p>
       </div>
     </div>
   )

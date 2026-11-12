@@ -1,0 +1,418 @@
+/* Vehicle passport data page. Everything scales with the card width (cqw), so it reads the same in the
+   car app side panel, the landing page and the passport page. */
+.vp {
+  container-type: inline-size;
+  width: 100%;
+  text-align: left;
+  --vp-ink: #e9e7e1;
+  --vp-ink-2: rgba(233, 231, 225, 0.62);
+  --vp-ink-3: rgba(233, 231, 225, 0.4);
+  --vp-line: rgba(233, 231, 225, 0.14);
+  --vp-seal: #7fd6ae;
+  --vp-red: #ff5a52;
+}
+.vp-page {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 1.42;
+  border-radius: 3.2cqw;
+  padding: 4.2cqw 4.6cqw 3.4cqw;
+  color: var(--vp-ink);
+  font-family: var(--sans);
+  background:
+    radial-gradient(120% 90% at 85% 0%, #2c3038 0%, transparent 55%),
+    radial-gradient(90% 80% at 0% 100%, #22262c 0%, transparent 60%),
+    linear-gradient(160deg, #1b1e23 0%, #121418 60%, #0d0f12 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 2px 6px rgba(0, 0, 0, 0.25),
+    0 30px 80px rgba(0, 0, 0, 0.35);
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+  gap: 2.4cqw;
+  transition: box-shadow 0.6s var(--ease);
+}
+.vp.is-void .vp-page {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 90, 82, 0.55),
+    0 2px 6px rgba(0, 0, 0, 0.25),
+    0 30px 80px rgba(0, 0, 0, 0.35);
+}
+
+/* security print */
+.vp-guilloche {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.vp-guilloche path {
+  fill: none;
+  stroke: rgba(210, 220, 235, 0.07);
+  stroke-width: 1.1;
+}
+.vp-holo {
+  position: absolute;
+  inset: -40%;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 38%,
+    rgba(120, 200, 255, 0.16) 44%,
+    rgba(190, 140, 255, 0.16) 48%,
+    rgba(255, 210, 140, 0.14) 52%,
+    rgba(130, 255, 200, 0.12) 56%,
+    transparent 62%
+  );
+  mix-blend-mode: screen;
+  animation: vp-holo 7s ease-in-out infinite alternate;
+  transition: opacity 0.5s var(--ease);
+}
+@keyframes vp-holo {
+  from {
+    transform: translateX(-18%);
+  }
+  to {
+    transform: translateX(18%);
+  }
+}
+.vp.is-void .vp-holo {
+  opacity: 0;
+}
+.vp-page > *:not(.vp-guilloche):not(.vp-holo) {
+  position: relative;
+}
+
+/* header */
+.vp-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding-bottom: 1.8cqw;
+  border-bottom: 1px solid var(--vp-line);
+}
+.vp-issuer {
+  display: flex;
+  gap: 1.6cqw;
+  align-items: center;
+}
+.vp-issuer svg {
+  width: 3.6cqw;
+  height: 3.6cqw;
+}
+.vp-issuer b,
+.vp-no b {
+  display: block;
+  font-size: 2.5cqw;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.vp-issuer small,
+.vp-no small {
+  display: block;
+  font-size: 1.35cqw;
+  letter-spacing: 0.18em;
+  color: var(--vp-ink-3);
+  margin-top: 0.3cqw;
+}
+.vp-no {
+  text-align: right;
+}
+.vp-no b {
+  font-size: 1.9cqw;
+  font-weight: 600;
+}
+
+/* photo + fields */
+.vp-body {
+  display: grid;
+  grid-template-columns: 34% 1fr 16cqw;
+  gap: 3.2cqw;
+  align-items: start;
+  min-height: 0;
+}
+.vp-photo {
+  margin: 0;
+}
+.vp-photo img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1.62;
+  object-fit: cover;
+  object-position: 50% 55%;
+  border-radius: 1.4cqw;
+  filter: grayscale(1) contrast(1.08) brightness(0.96);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+.vp-photo figcaption {
+  margin-top: 1.2cqw;
+  display: grid;
+  gap: 0.6cqw;
+}
+.vp-photo figcaption span:first-child {
+  font-size: 1.6cqw;
+  color: var(--vp-ink-2);
+}
+.vp-photo .micro {
+  font-size: 0.85cqw;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  overflow: hidden;
+  color: var(--vp-ink-3);
+}
+.vp-fields {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.7cqw 3cqw;
+}
+.vp-fields > div {
+  min-width: 0;
+}
+.vp-fields .wide {
+  grid-column: span 2;
+}
+.vp-fields dt {
+  font-size: 1.35cqw;
+  color: var(--vp-ink-3);
+  letter-spacing: 0.02em;
+}
+.vp-fields dt i {
+  font-style: normal;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-left: 0.5cqw;
+  font-size: 1.1cqw;
+}
+.vp-fields dd {
+  margin: 0.35cqw 0 0;
+  font-size: 2.55cqw;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vp-fields dd.mono {
+  font-family: var(--mono);
+  font-weight: 500;
+  font-size: 2.2cqw;
+  letter-spacing: 0.04em;
+}
+.vp-fields em {
+  display: block;
+  font-style: normal;
+  font-size: 1.25cqw;
+  color: var(--vp-ink-3);
+  margin-top: 0.2cqw;
+}
+.vp-fields .bad dt,
+.vp-fields .bad em {
+  color: var(--vp-red);
+}
+.vp-fields .bad dd {
+  color: var(--vp-red);
+  animation: vp-shake 0.42s var(--ease) 1;
+}
+.vp-fields s {
+  color: var(--vp-ink-2);
+  font-weight: 600;
+  margin-right: 0.6cqw;
+  text-decoration-thickness: 0.25cqw;
+  text-decoration-color: var(--vp-red);
+}
+@keyframes vp-shake {
+  20% {
+    transform: translateX(-0.5cqw);
+  }
+  45% {
+    transform: translateX(0.45cqw);
+  }
+  70% {
+    transform: translateX(-0.25cqw);
+  }
+}
+
+/* record chain */
+.vp-chain-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 1.45cqw;
+  color: var(--vp-ink-2);
+  margin-bottom: 1cqw;
+}
+.vp-chain-head i {
+  font-style: normal;
+  color: var(--vp-ink-3);
+  margin-left: 0.8cqw;
+}
+.vp-chain-head code {
+  font-family: var(--mono);
+  font-size: 1.3cqw;
+  color: var(--vp-ink-3);
+}
+.vp.is-void .vp-chain-head code {
+  color: var(--vp-red);
+}
+.vp-ticks {
+  position: relative;
+  display: flex;
+  gap: 0.32cqw;
+  height: 2.2cqw;
+}
+.vp-ticks span {
+  flex: 1;
+  border-radius: 0.3cqw;
+  background: rgba(233, 231, 225, 0.32);
+  transition:
+    background 0.35s var(--ease),
+    opacity 0.35s var(--ease);
+}
+.vp-ticks span.today {
+  background: var(--vp-ink);
+  box-shadow: 0 0 1.2cqw rgba(255, 255, 255, 0.35);
+}
+.vp-ticks span.broke {
+  background: var(--vp-red);
+}
+.vp-ticks span.dead {
+  background: rgba(255, 90, 82, 0.16);
+  animation: vp-dead 0.3s var(--ease) both;
+}
+@keyframes vp-dead {
+  from {
+    background: rgba(233, 231, 225, 0.32);
+  }
+}
+.vp.is-void .vp-ticks span.today {
+  background: rgba(255, 90, 82, 0.4);
+  box-shadow: none;
+}
+.vp-crack {
+  position: absolute;
+  top: -1.2cqw;
+  width: 2cqw;
+  height: 4.6cqw;
+  transform: translateX(-50%);
+  opacity: 0;
+  overflow: visible;
+}
+.vp-crack path {
+  fill: none;
+  stroke: var(--vp-red);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.vp.is-void .vp-crack {
+  opacity: 1;
+  transition: opacity 0.2s var(--ease);
+}
+
+/* machine readable zone */
+.vp-mrz {
+  margin: 0 -4.6cqw -3.4cqw;
+  padding: 1.5cqw 4.6cqw 1.8cqw;
+  background: rgba(255, 255, 255, 0.035);
+  border-top: 1px solid var(--vp-line);
+  font-size: 1.86cqw;
+  letter-spacing: 0.24cqw;
+  line-height: 1.45;
+  color: var(--vp-ink-2);
+  white-space: pre;
+  overflow: hidden;
+}
+
+/* seal / void stamp */
+.vp-stamp {
+  position: relative;
+  align-self: center;
+  width: 16cqw;
+  height: 16cqw;
+  pointer-events: none;
+}
+.vp-seal,
+.vp-void {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  transition:
+    opacity 0.3s var(--ease),
+    transform 0.3s var(--ease);
+}
+.vp-seal {
+  transform: rotate(-9deg);
+  stroke: var(--vp-seal);
+  color: var(--vp-seal);
+  opacity: 0.9;
+  mix-blend-mode: screen;
+}
+.vp-seal text {
+  fill: var(--vp-seal);
+  stroke: none;
+  font-family: var(--sans);
+}
+.vp-seal .arc {
+  font-size: 8.4px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+}
+.vp-seal .days {
+  font-size: 11px;
+  font-weight: 700;
+}
+.vp-void {
+  width: 30cqw;
+  height: 15cqw;
+  left: -20cqw;
+  top: 1cqw;
+  stroke: var(--vp-red);
+  opacity: 0;
+  transform: rotate(-12deg) scale(1.6);
+}
+.vp-void text {
+  fill: var(--vp-red);
+  stroke: none;
+  font-family: var(--sans);
+}
+.vp-void .big {
+  font-size: 46px;
+  font-weight: 800;
+  letter-spacing: 8px;
+}
+.vp-void .small {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+}
+.vp.is-void .vp-seal {
+  opacity: 0.12;
+}
+.vp.is-void .vp-void {
+  opacity: 0.95;
+  transform: rotate(-12deg) scale(1);
+  transition:
+    opacity 0.12s var(--ease) 0.75s,
+    transform 0.28s cubic-bezier(0.2, 1.4, 0.4, 1) 0.75s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vp-holo {
+    animation: none;
+  }
+}
+
+.vp-photo .vp-ghost {
+  width: 38%;
+  aspect-ratio: 1.62;
+  object-fit: cover;
+  margin-top: 1.6cqw;
+  opacity: 0.16;
+  filter: grayscale(1) contrast(1.4);
+  mix-blend-mode: screen;
+  border-radius: 0.6cqw;
+}

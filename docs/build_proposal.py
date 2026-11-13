@@ -539,7 +539,7 @@ def main():
     b.bullets([
         f'GitHub 저장소 (소스 코드 + APK: apk/ 폴더): {REPO}',
         f'웹 라이브 데모: {DEMO}  (#/ 랜딩 · #/console 시연 콘솔 · #/car 차량 앱 · #/passport 차량 여권 · #/fleet 플릿)',
-        '소개 영상: 별도 첨부 (밸류링크_ValueLink_소개영상.mp4, 145초)',
+        '시연 영상: 별도 첨부 (밸류링크_ValueLink_시연영상.mp4, 3분 51초)',
     ])
     b.image('passport.png', 12.0, '그림 10. 차량 여권: 이력 무결성, 차량 실측 SOH, 해시 사슬과 “주행거리 되돌려 보기”')
     b.image('console.png', 15.6, '그림 11. 시연 콘솔: 차량 앱, 3D 트윈, 공공데이터 × 밸류맵, 현대차그룹 매출 기회, Pleos SDK 호출 로그를 한 화면에')
@@ -548,6 +548,11 @@ def main():
     b = boxes[7]
     b.para('(선택) 게시 후 링크 기재 예정')
 
+    # the form's metadata carries the organizer's editor; clear it so the file carries no personal names
+    cp = doc.core_properties
+    cp.author = ''
+    cp.last_modified_by = ''
+    cp.comments = ''
     doc.save(OUT)  # public copy (in the repo): no personal data
     if not os.path.exists(APPLICANT_FILE):
         return

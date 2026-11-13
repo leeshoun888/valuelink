@@ -4,7 +4,7 @@
 Pleos Connect 위에서 차가 스스로 가치를 **지키고**, **증명하고**, 다음 차와 다음 주인에게 **잇습니다**.
 
 - 웹 라이브 데모: https://leeshoun888.github.io/valuelink/ (랜딩 · `#/console` 시연 콘솔 · `#/car` 차량 앱 · `#/passport` 차량 여권 · `#/fleet` 플릿)
-- APK: [`apk/`](apk/) (Pleos Connect 에뮬레이터 2.1.0, API 34에서 검증)
+- APK: [`apk/ValueLink_밸류링크_release.apk`](apk/ValueLink_밸류링크_release.apk) (Pleos Connect 에뮬레이터 2.1.0, 2560×1440, API 34에서 검증)
 - 현대자동차그룹 차량용 앱 개발 공모전 출품작
 
 ## 무엇을 하나요
@@ -74,6 +74,23 @@ cd web && npm run build && cd ../android && ./gradlew assembleRelease   # web/di
 
 - SDK: `ai.pleos.playground:Vehicle:2.3.2`, `NaviHelper:3.0.5`, `TextToSpeech:3.3.1`, `SpeechToText:3.3.1`, `FusedLocation:1.1.3`
 - 에뮬레이터 시나리오: `adb forward tcp:8088 tcp:8088` 후 가상 콘솔 페이지를 연 상태에서 `tools/emu/jg.sh plug 100`, `rain`, `lights`, `lamp TPMS On` 등
+
+## 테스트 환경
+
+| 항목 | 값 |
+|---|---|
+| 에뮬레이터 | Pleos Connect 에뮬레이터 2.1.0 (기기 프로필 `Pleos_Connect_v2_0`) |
+| 시스템 이미지 | Android 14 (API 34), `pleos-automotive`, arm64-v8a |
+| 화면 규격 | 2560 × 1440 px, 160 dpi (가로) |
+| APK | [`apk/ValueLink_밸류링크_release.apk`](apk/ValueLink_밸류링크_release.apk) (release 서명) |
+
+```bash
+adb install -r "apk/ValueLink_밸류링크_release.apk"
+adb shell am start --user 10 -n com.carvalue.app/.MainActivity   # 또는 독의 밸류링크 아이콘
+```
+
+- 별도 설정 없이 실행됩니다. 공공데이터 인증키와 중계 서버가 없어도 저장소에 포함된 실데이터 사본(`web/public/pub`)으로 같은 기능이 동작합니다.
+- 시나리오 재현: 차량 앱 오른쪽 위 `···` 메뉴에서 "시연용 이력 불러오기", "공공데이터: 30분 뒤 비 예보", "공공데이터: 호우경보 발령" 등을 고를 수 있습니다. 가상 콘솔로 차량 신호를 바꾸려면 위 실행 절의 `tools/emu/jg.sh`를 씁니다.
 
 ## 에뮬레이터 검증 (Pleos Connect 2.1.0)
 
